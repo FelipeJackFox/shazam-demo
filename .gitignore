@@ -1,8 +1,51 @@
+# --- Entorno y cachés ---
 .venv/
 __pycache__/
 *.pyc
-fp.sqlite
-plots/
-audio_corpus/
-snippets/
 .DS_Store
+.env
+
+
+# --- Archivos locales y bases de datos ---
+fp.sqlite        # SQLite local (solo usado en versiones anteriores)
+*.db
+*.log
+
+# --- Salidas y temporales ---
+plots/           # gráficos solo para debug local
+logs/
+tmp/
+__temp__/
+
+# --- Datasets locales (no necesarios en la nube) ---
+audio_corpus/    # corpus base local
+snippets/        # clips de prueba locales
+
+# --- Archivos intermedios ---
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+*.aac
+
+# --- Configuración o entornos del IDE ---
+.vscode/
+.idea/
+*.iml
+
+# --- Archivos de despliegue o build ---
+dist/
+build/
+*.egg-info/
+
+# --- Python cache y librerías empaquetadas ---
+*.pkl
+*.npz
+*.npy
+
+# --- Archivos de contenedor / AWS ---
+Dockerfile
+*.zip
+*.tar
+*.tar.gz

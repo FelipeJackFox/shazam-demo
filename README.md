@@ -1,64 +1,140 @@
-# Mini‑Shazam (Fingerprinting acústico en Python)
+# Mini-Shazam — Versión Cloud (Aurora MySQL backend)
 
-Demo educativa que implementa un *fingerprinting* tipo Shazam usando:
-- STFT (librosa) → espectrograma
-- Detección de picos (máximos locales 2D, `scipy.ndimage.maximum_filter`)
-- Hashes de pares de picos `(f1, f2, Δt)` con cuantización
-- Indexado en SQLite para búsqueda rápida por hash
-- Identificación por votación y alineamiento temporal (offset histogram)
+Esta versión del proyecto implementa el algoritmo tipo Shazam con el cómputo de huellas (fingerprints) en local,
+pero delega la **búsqueda y coincidencia de hashes** a una base de datos MySQL/Aurora en la nube.
 
-## Instalación
+---
+
+## 🚀 Instalación
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # En Windows: .venv\Scripts\activate
+source .venv/bin/activate       # En Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Estructura
-- `config.py` — parámetros del pipeline (FFT, hop, umbrales, etc.).
-- `fingerprint.py` — STFT, picos y generación de hashes.
-- `db.py` — base de datos SQLite para huellas.
-- `indexer.py` — indexado de canciones (wav/mp3) a la base de datos.
-- `identify.py` — identificación de un clip, devolviendo el mejor match.
-- `main.py` — CLI simple para indexar e identificar.
+---
 
-## Uso rápido
-1) **Indexar** tu corpus (p. ej., una carpeta con covers):
+## ⚙️ Configuración del entorno (.env)
+En la raíz del proyecto, crea un archivo `.env` con tus credenciales de Aurora:
+
 ```bash
-python main.py index --db fp.sqlite --root ./audio_corpus
-```
-Esto indexará todos los `.wav`/`.mp3` dentro de `audio_corpus` como canciones separadas.
-
-2) **Identificar** un fragmento:
-```bash
-python main.py identify --db fp.sqlite --audio ./snippets/one_kiss_test_clip.wav
-
-python main.py identify --db fp.sqlite --audio ./snippets/the_final_countdown_test_clip.ogg
-
-python main.py identify --db fp.sqlite --audio ./snippets/suite_bergamasque_test_clip.ogg #no hit example
-
-python main.py identify --db fp.sqlite --audio ./snippets/suite_bergamasque_2_test_clip.ogg #same song, better quality, less time than no hit, still this one hits
-
-python main.py identify --db fp.sqlite --audio ./snippets/hedwig's_theme_test_clip.ogg
-```
-3) **visualize_match**
-```bash
-python visualize_match.py --db fp.sqlite --audio .\snippets\one_kiss_test_clip.wav
-
-python visualize_match.py --db fp.sqlite --audio .\snippets\the_final_countdown_test_clip.ogg
-
-python visualize_match.py --db fp.sqlite --audio .\snippets\suite_bergamasque_2_test_clip.ogg
-
-python visualize_match.py --db fp.sqlite --audio ./snippets/hedwig's_theme_test_clip.ogg
-
+DB_BACKEND=mysql
+DB_HOST=<endpoint-de-tu-cluster>
+DB_PORT=3306
+DB_USER=<usuario>
+DB_PASS=<contraseña>
+DB_NAME=shazam
 ```
 
+Opcionalmente puedes agregar `DB_SSL_CA` si tu instancia exige SSL.
 
-3) **Tips**:
-- Mantén el *sample rate* en 44.1 kHz y mono para consistencia.
-- Si tu audio viene muy bajo, normaliza antes.
-- Ajusta `PEAK_AMPLITUDE_DB` y `PEAK_NEIGHBORHOOD_SIZE` si hay pocos/muchos picos.
-- Para robustez: captura 5–8 s del micrófono.
+---
 
-## Nota legal
-Usa **solo** audio con licencias adecuadas (covers autorizados, CC, etc.).
+## 📁 Estructura del proyecto
+
+```
+shazam_demo/
+├── src/
+│   ├── config.py           # Parámetros del pipeline (FFT, hop, umbrales)
+│   ├── db_mysql.py         # Backend Aurora MySQL
+│   ├── fingerprint.py      # STFT, picos y hashes
+│   ├── identify.py         # Identificación vía JOIN con Aurora
+│   ├── indexer.py          # Indexado desde carpetas o manifest.csv
+│   └── util_youtube.py     # Extrae IDs de URLs de YouTube
+├── scripts/
+│   └── test_identify.py    # Script rápido de prueba
+├── main.py                 # CLI principal (indexar / identificar)
+├── manifest.csv            # Metadatos de canciones
+├── requirements.txt
+└── .env
+```
+
+---
+
+## 🧠 Concepto general
+1. El **hashing acústico** (fingerprinting) se realiza localmente con `librosa` y `scipy`.
+2. Los hashes se almacenan en la base de datos Aurora MySQL.
+3. La identificación compara los hashes del clip con los de la base y determina la canción más probable.
+
+---
+
+## 🧩 Comandos disponibles
+
+### 1️⃣ Indexar canciones (desde carpeta)
+```bash
+python main.py index --backend mysql --root ./audio_corpus
+```
+Indexa todos los `.wav` / `.mp3` del directorio `audio_corpus/` en la base de datos.
+
+---
+
+### 2️⃣ Indexar canciones desde un CSV
+El `manifest.csv` debe contener las columnas:
+
+```
+path,title,artist,year,youtube_url,youtube_id,song_id
+```
+
+Ejemplo:
+```bash
+python main.py index-manifest --backend mysql --csv manifest.csv
+```
+
+Cada fila del CSV genera sus huellas y las inserta en la base de datos Aurora.
+
+---
+
+### 3️⃣ Identificar un clip de audio
+```bash
+python main.py identify --backend mysql --audio ./snippets/one_kiss_test_clip.wav
+```
+
+Ejemplo de salida:
+```json
+{
+  "ok": true,
+  "song_id": "a83f19...",
+  "title": "One Kiss",
+  "artist": "Calvin Harris ft. Dua Lipa",
+  "confidence": 0.92,
+  "matches_for_song": 412,
+  "matches_at_best_offset": 380,
+  "offset_frames": 118,
+  "youtube_id": "Dd5tFhZp",
+  "clip_hashes": 520
+}
+```
+
+---
+
+### 4️⃣ Probar identificación automática
+Desde `scripts/test_identify.py`:
+
+```bash
+python -m scripts.test_identify
+```
+Este busca automáticamente el primer clip en la carpeta `snippets/`
+y ejecuta la identificación completa contra la base Aurora.
+
+---
+
+## 💡 Tips útiles
+- Mantén el audio **mono y 44.1 kHz** para consistencia.
+- Si el audio suena muy bajo, normaliza el volumen antes de indexarlo.
+- Usa clips de **5–8 segundos** para buena precisión.
+- Si hay muy pocas coincidencias, revisa `PEAK_AMPLITUDE_DB` en `config.py`.
+
+---
+
+## 🧰 Mantenimiento de base de datos
+Para inicializar las tablas o verificar conexión:
+```bash
+python -m src.db_mysql
+```
+O dentro del código:
+```python
+from src import db_mysql as db
+conn = db.connect(); db.init_db(conn)
+```
+
+---
