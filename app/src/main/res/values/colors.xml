@@ -1,0 +1,9 @@
+<resources>
+    <color name="sl_black">#0F0F12</color>
+    <color name="sl_black_elev">#15161A</color>
+    <color name="sl_text_primary">#FFFFFF</color>
+    <color name="sl_text_secondary">#A9B0B7</color>
+    <color name="sl_green">#29E07E</color>
+    <color name="sl_green_dim">#1DBF66</color>
+    <color name="sl_card">#1A1B21</color>
+</resources>

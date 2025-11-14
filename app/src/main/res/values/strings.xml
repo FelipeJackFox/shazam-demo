@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">SoundLens</string>
+    <string name="send">Send</string>
+    <string name="select_audio">Select demo audio</string>
+
+    <!-- Lambda Identify (la de comparar) -->
+    <string name="identify_base_url">https://ismnl3rnp0.execute-api.us-west-2.amazonaws.com/</string>
+
+    <!-- Lambda Plot (la de la gráfica) -->
+    <string name="plot_base_url">https://un073u3nd0.execute-api.us-west-2.amazonaws.com/</string>
+
+    <string-array name="demo_audio_entries">
+        <item>Example 1</item>
+        <item>Example 2</item>
+        <item>Example 3</item>
+        <item>Example 4</item>
+    </string-array>
+</resources>
