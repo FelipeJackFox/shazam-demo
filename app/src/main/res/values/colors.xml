@@ -6,4 +6,12 @@
     <color name="sl_green">#29E07E</color>
     <color name="sl_green_dim">#1DBF66</color>
     <color name="sl_card">#1A1B21</color>
+
+    <!-- básicos -->
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+
+    <!-- usados por activity_result.xml -->
+    <color name="dark_gray">#1A1C1F</color>
+    <color name="gray">#A0FFFFFF</color> <!-- blanco al 63% para textos secundarios -->
 </resources>

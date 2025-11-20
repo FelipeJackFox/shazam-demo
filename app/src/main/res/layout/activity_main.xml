@@ -43,9 +43,9 @@
             android:layout_width="130dp"
             android:layout_height="130dp"
             android:layout_gravity="center"
+            android:contentDescription="SoundLens logo"
             android:scaleType="centerInside"
-            android:src="@drawable/soundlens_logo"
-            android:contentDescription="SoundLens logo" />
+            android:src="@drawable/soundlens_logo" />
 
         <ImageView
             android:id="@+id/btnTrash"

@@ -1,0 +1,83 @@
+package com.example.soundlens.data.models
+
+/**
+ * Modelo unificado para parsear tanto el JSON “viejo” como el nuevo de la Lambda.
+ * Compat:
+ *  - Si matches_* no vienen en la raíz, se toman de top_matches[0].
+ *  - Se mantienen campos de YouTube por compatibilidad aunque ya no se usen en UI.
+ */
+data class IdentifyResponse(
+    val ok: Boolean? = null,
+    val request_id: String? = null,
+
+    // Info básica del match
+    val song_id: String? = null,
+    val title: String? = null,
+    val artist: String? = null,
+    val year: Int? = null,
+    val genre: String? = null,
+
+    // Coincidencia
+    val offset_frames: Int? = null,
+    val confidence: Double? = null,
+
+    // Audio / S3
+    val s3_url: String? = null,
+    val s3_key: String? = null,
+
+    // YouTube (compat)
+    val youtube_id: String? = null,
+    val youtube_url: String? = null,
+    val youtube_url_highlight: String? = null,
+
+    // Highlight
+    val highlight_sec: Int? = null,
+
+    // Compat JSON viejo (podían venir en raíz)
+    val matches_at_best_offset: Int? = null,
+    val matches_for_song: Int? = null,
+
+    // ---- NUEVO JSON ----
+    val detected_genre: String? = null,
+    val calculated_features: Features? = null,
+    val ideal_features: Features? = null,
+    val genre_distances: Map<String, Double>? = null,
+    val top_matches: List<TopMatch>? = null,
+
+    // Datos del query que a veces devuelve el back
+    val s3_bucket_query: String? = null,
+    val s3_key_query: String? = null,
+    val s3_key_target: String? = null,
+) {
+    /** Si no vienen en raíz, usa top_matches[0] como fallback. */
+    val bestMatches: Int?
+        get() = matches_at_best_offset ?: top_matches?.firstOrNull()?.matches_at_best_offset
+
+    val totalMatches: Int?
+        get() = matches_for_song ?: top_matches?.firstOrNull()?.matches_for_song
+}
+
+data class Features(
+    val rms: Double? = null,
+    val zcr: Double? = null,
+    val sc_hz: Double? = null
+)
+
+data class TopMatch(
+    val song_id: String? = null,
+    val title: String? = null,
+    val artist: String? = null,
+    val year: Int? = null,
+    val genre: String? = null,
+    val path: String? = null,
+    val s3_key: String? = null,
+    val s3_url: String? = null,
+    val youtube_url: String? = null,
+    val youtube_id: String? = null,
+    val youtube_url_highlight: String? = null,
+    val highlight_sec: Int? = null,
+    val offset_frames: Int? = null,
+    val matches_at_best_offset: Int? = null,
+    val matches_for_song: Int? = null,
+    val confidence: Double? = null
+)

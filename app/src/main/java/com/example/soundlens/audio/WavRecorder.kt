@@ -9,6 +9,9 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.concurrent.thread
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.TimeUnit
 
 class WavRecorder(private val outputFile: File) {
 
@@ -19,7 +22,8 @@ class WavRecorder(private val outputFile: File) {
                 AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
 
         private var recorder: AudioRecord? = null
-        private var isRecording = false
+        private val isRecording = AtomicBoolean(false)
+        private var writerDone: CountDownLatch? = null
 
         fun startRecording() {
                 recorder = AudioRecord(
@@ -30,39 +34,44 @@ class WavRecorder(private val outputFile: File) {
                         bufferSize
                 )
                 recorder?.startRecording()
-                isRecording = true
+                isRecording.set(true)
+                writerDone = CountDownLatch(1)
 
-                thread {
-                        val pcmBuffer = ByteArray(bufferSize)
-                        FileOutputStream(outputFile).use { fos ->
-                                // header provisional
-                                writeWavHeader(fos, sampleRate, 1, 16, 0)
-                                var totalAudioLen = 0L
-
-                                while (isRecording && recorder != null) {
-                                        val read = recorder!!.read(pcmBuffer, 0, bufferSize)
-                                        if (read > 0) {
-                                                fos.write(pcmBuffer, 0, read)
-                                                totalAudioLen += read
+                thread(name = "WavWriter") {
+                        try {
+                                val pcmBuffer = ByteArray(bufferSize)
+                                FileOutputStream(outputFile).use { fos ->
+                                        writeWavHeader(fos, sampleRate, 1, 16, 0)
+                                        var totalAudioLen = 0L
+                                        while (isRecording.get() && recorder != null) {
+                                                val read = recorder!!.read(pcmBuffer, 0, bufferSize)
+                                                if (read > 0) {
+                                                        fos.write(pcmBuffer, 0, read)
+                                                        totalAudioLen += read
+                                                }
                                         }
+                                        updateWavHeader(outputFile, totalAudioLen)
                                 }
-
-                                // actualizar header con los tamaños reales
-                                updateWavHeader(outputFile, totalAudioLen)
+                        } catch (_: Exception) {
+                        } finally {
+                                writerDone?.countDown()
                         }
                 }
         }
 
-        fun stopRecording() {
-                isRecording = false
-                recorder?.apply {
-                        stop()
-                        release()
+        /** Detiene y espera a que el hilo cierre el header WAV (evita archivos corruptos). */
+        fun stopAndWait(timeoutMs: Long = 2000) {
+                isRecording.set(false)
+                runCatching {
+                        recorder?.apply { stop(); release() }
                 }
                 recorder = null
+                writerDone?.await(timeoutMs, TimeUnit.MILLISECONDS)
+                writerDone = null
         }
 
-        /** escribe un header WAV de 44 bytes */
+        fun stopRecording() = stopAndWait()
+
         private fun writeWavHeader(
                 out: FileOutputStream,
                 sampleRate: Int,
@@ -78,7 +87,7 @@ class WavRecorder(private val outputFile: File) {
                 header.put("WAVE".toByteArray(Charsets.US_ASCII))
                 header.put("fmt ".toByteArray(Charsets.US_ASCII))
                 header.putInt(16)
-                header.putShort(1) // PCM
+                header.putShort(1)
                 header.putShort(channels.toShort())
                 header.putInt(sampleRate)
                 header.putInt(byteRate)
@@ -89,22 +98,14 @@ class WavRecorder(private val outputFile: File) {
                 out.write(header.array(), 0, 44)
         }
 
-        /** reabre el archivo y corrige los dos tamaños del header */
         private fun updateWavHeader(file: File, totalAudioLen: Long) {
                 val totalDataLen = totalAudioLen + 36
-                val raf = RandomAccessFile(file, "rw")
-                // chunk size (4 bytes) en offset 4
-                raf.seek(4)
-                raf.write(intToLE(totalDataLen.toInt()))
-                // subchunk2 size (data) en offset 40
-                raf.seek(40)
-                raf.write(intToLE(totalAudioLen.toInt()))
-                raf.close()
+                RandomAccessFile(file, "rw").use { raf ->
+                        raf.seek(4);  raf.write(intToLE(totalDataLen.toInt()))
+                        raf.seek(40); raf.write(intToLE(totalAudioLen.toInt()))
+                }
         }
 
         private fun intToLE(value: Int): ByteArray =
-                ByteBuffer.allocate(4)
-                        .order(ByteOrder.LITTLE_ENDIAN)
-                        .putInt(value)
-                        .array()
+                ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array()
 }
