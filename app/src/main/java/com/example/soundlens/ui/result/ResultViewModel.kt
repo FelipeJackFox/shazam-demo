@@ -21,7 +21,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 
-Gracias, actualmente hay varios errores en la forma en la que se graba
 
 class ResultViewModel(app: Application) : AndroidViewModel(app) {
 
