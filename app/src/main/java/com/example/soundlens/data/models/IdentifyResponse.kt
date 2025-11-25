@@ -16,10 +16,12 @@ data class IdentifyResponse(
     val artist: String? = null,
     val year: Int? = null,
     val genre: String? = null,
+    val path: String? = null,
 
     // Coincidencia
     val offset_frames: Int? = null,
     val confidence: Double? = null,
+    val clip_hashes: Int? = null,
 
     // Audio / S3
     val s3_url: String? = null,
@@ -38,7 +40,10 @@ data class IdentifyResponse(
     val matches_for_song: Int? = null,
 
     // ---- NUEVO JSON ----
-    val detected_genre: String? = null,
+    val audio_analysis: AudioAnalysis? = null,
+    val input: IdentifyInput? = null,
+
+    // Compatibilidad hacia atrás
     val calculated_features: Features? = null,
     val ideal_features: Features? = null,
     val genre_distances: Map<String, Double>? = null,
@@ -55,12 +60,36 @@ data class IdentifyResponse(
 
     val totalMatches: Int?
         get() = matches_for_song ?: top_matches?.firstOrNull()?.matches_for_song
+
+    val clipFeatures: Features?
+        get() = calculated_features ?: audio_analysis?.calculated_features
+
+    val idealFeatures: Features?
+        get() = ideal_features ?: audio_analysis?.ideal_features
+
+    val genreDistances: Map<String, Double>?
+        get() = genre_distances ?: audio_analysis?.distances
+
+    val predictedGenre: String?
+        get() = audio_analysis?.predicted_genre
 }
 
 data class Features(
     val rms: Double? = null,
     val zcr: Double? = null,
     val sc_hz: Double? = null
+)
+
+data class AudioAnalysis(
+    val predicted_genre: String? = null,
+    val calculated_features: Features? = null,
+    val ideal_features: Features? = null,
+    val distances: Map<String, Double>? = null
+)
+
+data class IdentifyInput(
+    val bucket: String? = null,
+    val key: String? = null
 )
 
 data class TopMatch(

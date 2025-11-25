@@ -93,8 +93,8 @@ class ResultActivity : AppCompatActivity() {
 
     private fun renderRadarChart() {
         val r = vm.state.value?.response ?: return
-        val clip = r.calculated_features
-        val ideal = r.ideal_features
+        val clip = r.clipFeatures
+        val ideal = r.idealFeatures
         if (clip == null || ideal == null) {
             binding.radarChart.visibility = View.GONE
             return

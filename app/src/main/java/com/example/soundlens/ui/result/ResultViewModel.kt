@@ -21,6 +21,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 
+Gracias, actualmente hay varios errores en la forma en la que se graba
+
 class ResultViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _state = MutableLiveData(ResultUiState())
@@ -48,7 +50,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             metaTitle = title,
             metaSubtitle = subtitle,
             response = resp,
-            showRadar = (resp?.calculated_features != null && resp.ideal_features != null),
+            showRadar = (resp?.clipFeatures != null && resp.idealFeatures != null),
             error = null
         )
 
