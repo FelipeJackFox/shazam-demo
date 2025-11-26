@@ -38,6 +38,7 @@ class ResultActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityResultBinding
     private val vm: ResultViewModel by viewModels()
+    private var lastRadarSignature: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,7 +127,12 @@ class ResultActivity : AppCompatActivity() {
             binding.txtFeatureSummary.text = vm.formatFeatures()
             binding.txtDistances.text = vm.formatDistances()
 
-            if (s.showRadar) renderRadarChart() else binding.radarChart.visibility = View.GONE
+            if (s.showRadar) {
+                renderRadarChart()
+            } else {
+                binding.radarChart.visibility = View.GONE
+                lastRadarSignature = null
+            }
 
             s.error?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
         }
@@ -138,8 +144,19 @@ class ResultActivity : AppCompatActivity() {
         val ideal = r.idealFeatures
         if (clip == null || ideal == null) {
             binding.radarChart.visibility = View.GONE
+            lastRadarSignature = null
             return
         }
+
+        val signature = listOf(
+            clip.rms, clip.zcr, clip.sc_hz,
+            ideal.rms, ideal.zcr, ideal.sc_hz
+        ).joinToString("|")
+        if (signature == lastRadarSignature && binding.radarChart.data != null) {
+            binding.radarChart.visibility = View.VISIBLE
+            return
+        }
+        lastRadarSignature = signature
 
         fun cap(value: Double?, max: Double): Float {
             val v = (value ?: 0.0).coerceAtLeast(0.0).coerceAtMost(max)
