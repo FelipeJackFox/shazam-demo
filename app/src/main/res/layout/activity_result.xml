@@ -68,8 +68,8 @@
 
             <ImageButton
                 android:id="@+id/btnPlay"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="@android:color/transparent"
                 android:contentDescription="@string/app_name"
                 android:src="@drawable/ic_play"
@@ -144,7 +144,7 @@
         <androidx.cardview.widget.CardView
             android:id="@+id/radarCard"
             android:layout_width="match_parent"
-            android:layout_height="360dp"
+            android:layout_height="320dp"
             android:layout_marginTop="12dp"
             app:cardBackgroundColor="@color/sl_card"
             app:cardCornerRadius="8dp"
@@ -153,8 +153,51 @@
             <com.github.mikephil.charting.charts.RadarChart
                 android:id="@+id/radarChart"
                 android:layout_width="match_parent"
-                android:layout_height="360dp"
-                android:padding="12dp" />
+                android:layout_height="match_parent"
+                android:padding="16dp" />
+        </androidx.cardview.widget.CardView>
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardAnalysis"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/sl_card"
+            app:cardCornerRadius="8dp"
+            app:cardUseCompatPadding="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:id="@+id/txtPredictedGenre"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/sl_text_primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtFeatureSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/sl_text_secondary"
+                    android:textSize="14sp"
+                    android:fontFamily="monospace" />
+
+                <TextView
+                    android:id="@+id/txtDistances"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/sl_text_secondary"
+                    android:textSize="14sp"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
         </androidx.cardview.widget.CardView>
 
         <Button
@@ -178,15 +221,23 @@
             android:textAllCaps="false"
             android:textColor="@color/sl_text_primary" />
 
-        <TextView
-            android:id="@+id/txtDebug"
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/debugScroll"
             android:layout_width="match_parent"
-            android:layout_height="200dp"
+            android:layout_height="260dp"
             android:layout_marginTop="8dp"
             android:background="@color/sl_card"
             android:padding="12dp"
-            android:textColor="@color/sl_text_secondary"
-            android:textSize="12sp"
-            android:visibility="gone" />
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/txtDebug"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/sl_text_secondary"
+                android:textSize="12sp"
+                android:textIsSelectable="true"
+                android:fontFamily="monospace" />
+        </androidx.core.widget.NestedScrollView>
     </LinearLayout>
 </ScrollView>

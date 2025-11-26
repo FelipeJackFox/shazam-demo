@@ -12,6 +12,7 @@ import com.example.soundlens.aws.AwsConfig
 import com.example.soundlens.aws.Presigner
 import com.example.soundlens.data.models.IdentifyResponse
 import com.example.soundlens.parsing.IdentifyParser
+import com.example.soundlens.uiutils.Formatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -29,6 +30,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
 
     private val player = AudioPlayer()
     private var ticker: Job? = null
+    private var startHighlightMs: Int = 0
 
     fun initWithPayload(
         payloadJson: String,
@@ -39,6 +41,11 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         offsetFrames: Int
     ) {
         val resp = IdentifyParser.parseOrNull(payloadJson)
+        startHighlightMs = when {
+            (resp?.highlight_sec ?: 0) > 0 -> (resp?.highlight_sec ?: 0) * 1000
+            offsetFrames > 0 -> AudioUtils.framesToMs(offsetFrames)
+            else -> 0
+        }
         val subtitle = buildString {
             append(artist)
             if (year > 0) append(" • $year")
@@ -53,7 +60,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             error = null
         )
 
-        viewModelScope.launch { downloadAndPrepare(resp, offsetFrames) }
+        viewModelScope.launch { downloadAndPrepare(resp) }
     }
 
     fun togglePlay() {
@@ -69,7 +76,16 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun downloadAndPrepare(resp: IdentifyResponse?, offsetFrames: Int) {
+    fun seekTo(ms: Int) {
+        if (_state.value?.audioReady != true) return
+        player.seekTo(ms)
+        _state.value = _state.value!!.copy(
+            elapsedMs = ms,
+            remainingMs = (player.duration() - ms).coerceAtLeast(0)
+        )
+    }
+
+    private suspend fun downloadAndPrepare(resp: IdentifyResponse?) {
         try {
             _state.postValue(_state.value!!.copy(loading = true, error = null))
 
@@ -85,8 +101,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             f.outputStream().use { it.write(bytes) }
 
             player.setOnPrepared {
-                val ms = if (offsetFrames > 0) AudioUtils.framesToMs(offsetFrames) else 0
-                if (ms > 0) runCatching { player.seekTo(ms) }
+                if (startHighlightMs > 0) runCatching { player.seekTo(startHighlightMs) }
                 player.start()
                 startTicker()
                 _state.postValue(_state.value!!.copy(
@@ -94,6 +109,14 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
                     audioReady = true,
                     isPlaying = true,
                     localFile = f
+                ))
+            }
+            player.setOnCompletion {
+                stopTicker()
+                _state.postValue(_state.value!!.copy(
+                    isPlaying = false,
+                    elapsedMs = player.duration(),
+                    remainingMs = 0
                 ))
             }
             player.prepare(f.absolutePath)
@@ -162,6 +185,62 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
                 resp.body?.bytes() ?: throw IllegalStateException("Cuerpo vacío")
             }
         }
+    fun formatOffset(): String {
+        val resp = state.value?.response
+        val highlight = resp?.highlight_sec ?: 0
+        val offset = resp?.offset_frames ?: 0
+        return when {
+            highlight > 0 -> "Highlight: ${Formatter.fmtMs(highlight * 1000)}"
+            offset > 0 -> "Highlight: ${Formatter.fmtMs(AudioUtils.framesToMs(offset))}"
+            else -> "Highlight: —"
+        }
+    }
+
+    fun formatBestMatches(): String {
+        val v = state.value?.response?.bestMatches
+        return "Matches at best offset: ${v ?: "—"}"
+    }
+
+    fun formatTotalMatches(): String {
+        val v = state.value?.response?.totalMatches
+        return "Total matches: ${v ?: "—"}"
+    }
+
+    fun formatPredictedGenre(): String {
+        val r = state.value?.response
+        val confidence = r?.confidence?.let { " • conf ${"%.3f".format(it)}" } ?: ""
+        return "Predicted: ${r?.predictedGenre ?: "—"}$confidence"
+    }
+
+    private fun fmtFeatureRow(label: String, value: Double?): String {
+        return "%s: %s".format(label, value?.let { "%.4f".format(it) } ?: "—")
+    }
+
+    fun formatFeatures(): String {
+        val clip = state.value?.response?.clipFeatures
+        val ideal = state.value?.response?.idealFeatures
+        if (clip == null && ideal == null) return "Features: —"
+        val clipText = listOf(
+            fmtFeatureRow("rms", clip?.rms),
+            fmtFeatureRow("zcr", clip?.zcr),
+            fmtFeatureRow("sc_hz", clip?.sc_hz)
+        ).joinToString("  ")
+        val idealText = listOf(
+            fmtFeatureRow("rms", ideal?.rms),
+            fmtFeatureRow("zcr", ideal?.zcr),
+            fmtFeatureRow("sc_hz", ideal?.sc_hz)
+        ).joinToString("  ")
+        return "Clip →  $clipText\nIdeal → $idealText"
+    }
+
+    fun formatDistances(): String {
+        val d = state.value?.response?.genreDistances ?: return "Distances: —"
+        val sorted = d.toList().sortedBy { it.second }
+        val rows = sorted.joinToString("\n") { (g, v) ->
+            "%s: %.4f".format(g, v)
+        }
+        return "Distances:\n$rows"
+    }
 
     override fun onCleared() {
         super.onCleared()
