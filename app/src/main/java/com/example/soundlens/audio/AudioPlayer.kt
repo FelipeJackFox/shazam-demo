@@ -10,9 +10,14 @@ class AudioPlayer {
 
     private var mp: MediaPlayer? = null
     private var onPreparedCb: ((MediaPlayer) -> Unit)? = null
+    private var onCompletionCb: ((MediaPlayer) -> Unit)? = null
 
     fun setOnPrepared(block: (MediaPlayer) -> Unit) {
         onPreparedCb = block
+    }
+
+    fun setOnCompletion(block: (MediaPlayer) -> Unit) {
+        onCompletionCb = block
     }
 
     fun prepare(path: String) {
@@ -25,7 +30,7 @@ class AudioPlayer {
                     .build()
             )
             setOnPreparedListener { onPreparedCb?.invoke(it) }
-            setOnCompletionListener { /* la UI observa isPlaying y timers */ }
+            setOnCompletionListener { onCompletionCb?.invoke(it) }
             setOnErrorListener { _, _, _ -> true }
             setDataSource(path)
             prepareAsync()
@@ -43,5 +48,6 @@ class AudioPlayer {
         try { mp?.release() } catch (_: Exception) {}
         mp = null
         onPreparedCb = null
+        onCompletionCb = null
     }
 }

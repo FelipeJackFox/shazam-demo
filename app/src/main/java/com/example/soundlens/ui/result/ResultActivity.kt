@@ -1,5 +1,6 @@
 package com.example.soundlens.ui.result
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.SeekBar
@@ -10,6 +11,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import com.example.soundlens.R
 import com.example.soundlens.databinding.ActivityResultBinding
+import com.example.soundlens.ui.graph.GraphActivity
 import com.example.soundlens.uiutils.Formatter
 import com.github.mikephil.charting.charts.RadarChart
 import com.github.mikephil.charting.components.XAxis
@@ -62,12 +64,19 @@ class ResultActivity : AppCompatActivity() {
                 if (fromUser) binding.txtElapsed.text = Formatter.fmtMs(progress)
             }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
-            override fun onStopTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {
+                sb ?: return
+                vm.seekTo(sb.progress)
+            }
         })
         binding.btnToggleDebug.setOnClickListener {
-            val showing = binding.txtDebug.isVisible
-            binding.txtDebug.visibility = if (showing) View.GONE else View.VISIBLE
+            val showing = binding.debugScroll.isVisible
+            binding.debugScroll.visibility = if (showing) View.GONE else View.VISIBLE
             binding.btnToggleDebug.text = if (showing) "Debug log ▾" else "Debug log ▴"
+        }
+        binding.btnGraph.setOnClickListener {
+            val intent = Intent(this, GraphActivity::class.java)
+            startActivity(intent)
         }
     }
 
@@ -85,7 +94,14 @@ class ResultActivity : AppCompatActivity() {
 
             binding.txtDebug.text = s.prettyJson
 
-            if (s.showRadar) renderRadarChart()
+            binding.txtOffset.text = vm.formatOffset()
+            binding.txtBestMatches.text = vm.formatBestMatches()
+            binding.txtTotalMatches.text = vm.formatTotalMatches()
+            binding.txtPredictedGenre.text = vm.formatPredictedGenre()
+            binding.txtFeatureSummary.text = vm.formatFeatures()
+            binding.txtDistances.text = vm.formatDistances()
+
+            if (s.showRadar) renderRadarChart() else binding.radarChart.visibility = View.GONE
 
             s.error?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
         }
@@ -162,10 +178,10 @@ class ResultActivity : AppCompatActivity() {
             textColor = labelColor
         }
         chart.legend.apply {
-            textColor = labelColor
-            textSize = 12f
-            isWordWrapEnabled = true
+            isEnabled = false
         }
+
+        chart.setExtraOffsets(16f, 16f, 16f, 16f)
 
         chart.animateXY(500, 500)
         chart.invalidate()

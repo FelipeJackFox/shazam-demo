@@ -2,6 +2,7 @@ package com.example.soundlens.ui.result
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -12,6 +13,7 @@ import com.example.soundlens.aws.AwsConfig
 import com.example.soundlens.aws.Presigner
 import com.example.soundlens.data.models.IdentifyResponse
 import com.example.soundlens.parsing.IdentifyParser
+import com.example.soundlens.uiutils.Formatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -24,11 +26,14 @@ import java.io.File
 
 class ResultViewModel(app: Application) : AndroidViewModel(app) {
 
+    companion object { private const val TAG = "ResultVM" }
+
     private val _state = MutableLiveData(ResultUiState())
     val state: LiveData<ResultUiState> = _state
 
     private val player = AudioPlayer()
     private var ticker: Job? = null
+    private var startHighlightMs: Int = 0
 
     fun initWithPayload(
         payloadJson: String,
@@ -39,6 +44,12 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         offsetFrames: Int
     ) {
         val resp = IdentifyParser.parseOrNull(payloadJson)
+        startHighlightMs = when {
+            (resp?.highlight_sec ?: 0) > 0 -> (resp?.highlight_sec ?: 0) * 1000
+            offsetFrames > 0 -> AudioUtils.framesToMs(offsetFrames)
+            else -> 0
+        }
+        Log.d(TAG, "Init payload with highlightMs=$startHighlightMs title=$title artist=$artist year=$year genre=$genre")
         val subtitle = buildString {
             append(artist)
             if (year > 0) append(" • $year")
@@ -53,7 +64,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             error = null
         )
 
-        viewModelScope.launch { downloadAndPrepare(resp, offsetFrames) }
+        viewModelScope.launch { downloadAndPrepare(resp) }
     }
 
     fun togglePlay() {
@@ -69,7 +80,16 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun downloadAndPrepare(resp: IdentifyResponse?, offsetFrames: Int) {
+    fun seekTo(ms: Int) {
+        if (_state.value?.audioReady != true) return
+        player.seekTo(ms)
+        _state.value = _state.value!!.copy(
+            elapsedMs = ms,
+            remainingMs = (player.duration() - ms).coerceAtLeast(0)
+        )
+    }
+
+    private suspend fun downloadAndPrepare(resp: IdentifyResponse?) {
         try {
             _state.postValue(_state.value!!.copy(loading = true, error = null))
 
@@ -79,14 +99,17 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
 
+            Log.d(TAG, "Downloading audio from $playable")
+
             val bytes = httpGetBytes(playable)
+            Log.d(TAG, "Downloaded ${bytes.size} bytes from S3")
             val ctx = getApplication<Application>()
             val f = File.createTempFile("song_", AudioUtils.guessExt(playable), ctx.cacheDir)
             f.outputStream().use { it.write(bytes) }
+            Log.d(TAG, "Audio cached at ${f.absolutePath}")
 
             player.setOnPrepared {
-                val ms = if (offsetFrames > 0) AudioUtils.framesToMs(offsetFrames) else 0
-                if (ms > 0) runCatching { player.seekTo(ms) }
+                if (startHighlightMs > 0) runCatching { player.seekTo(startHighlightMs) }
                 player.start()
                 startTicker()
                 _state.postValue(_state.value!!.copy(
@@ -96,8 +119,17 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
                     localFile = f
                 ))
             }
+            player.setOnCompletion {
+                stopTicker()
+                _state.postValue(_state.value!!.copy(
+                    isPlaying = false,
+                    elapsedMs = player.duration(),
+                    remainingMs = 0
+                ))
+            }
             player.prepare(f.absolutePath)
         } catch (e: Exception) {
+            Log.e(TAG, "Error preparando audio", e)
             _state.postValue(_state.value!!.copy(loading = false, error = "${e::class.java.simpleName}: ${e.message}"))
         }
     }
@@ -131,25 +163,46 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             if (host.startsWith("$bucket.s3")) path else null
         } catch (_: Exception) { null }
 
+    private fun buildKeyFromPath(rawPath: String?, genre: String?): String? {
+        if (rawPath.isNullOrBlank()) return null
+        val clean = rawPath.replace("\\", "/").removePrefix("/")
+        if (clean.startsWith("songs/")) return clean
+        if (clean.startsWith("audio_corpus/", true)) {
+            val stripped = clean.removePrefix("audio_corpus/")
+            val parts = stripped.split('/')
+            val fileName = parts.lastOrNull() ?: return null
+            val folder = parts.dropLast(1).lastOrNull()
+            val mappedFolder = folder ?: Presigner.mapGenreToFolder(genre)
+            return "songs/$mappedFolder/$fileName"
+        }
+        val mappedFolder = Presigner.mapGenreToFolder(genre)
+        return "songs/$mappedFolder/${clean.substringAfterLast('/')}"
+    }
+
     private fun getPlayableUrl(resp: IdentifyResponse?): String? {
         if (resp == null) return null
         val keyFromRoot = resp.s3_key?.takeIf { !it.isNullOrBlank() }
         val keyFromTop  = resp.top_matches?.firstOrNull()?.s3_key?.takeIf { !it.isNullOrBlank() }
-        val key = keyFromRoot ?: keyFromTop
+        val keyFromPath = buildKeyFromPath(resp.path, resp.genre)
+        val key = keyFromRoot ?: keyFromTop ?: keyFromPath
         if (key != null) {
             val clean = key.trim().removePrefix("/").replace("\\", "/")
             val finalKey = if (clean.contains("/")) clean
             else "songs/${Presigner.mapGenreToFolder(resp.genre)}/$clean"
+            Log.d(TAG, "Using S3 key=$finalKey (raw=${resp.s3_key}, top=${resp.top_matches?.firstOrNull()?.s3_key}, path=$keyFromPath)")
             return Presigner.presign(AwsConfig.BUCKET, finalKey)
         }
 
         resp.s3_url?.let { raw ->
+            Log.d(TAG, "Using provided s3_url=$raw")
             if (isPresigned(raw) || !raw.contains(".s3.", true)) return raw
             extractKeyFromS3Url(raw, AwsConfig.BUCKET)?.let { k ->
+                Log.d(TAG, "Presigning extracted key from s3_url: $k")
                 return Presigner.presign(AwsConfig.BUCKET, k)
             }
             return raw
         }
+        Log.e(TAG, "No playable URL found (s3_key, top_match key, path, s3_url all missing)")
         return null
     }
 
@@ -157,11 +210,70 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.IO) {
             val client = OkHttpClient()
             val req = Request.Builder().url(url).build()
+            Log.d(TAG, "HTTP GET $url")
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code} al descargar audio")
+                Log.d(TAG, "HTTP ${resp.code} received for audio")
                 resp.body?.bytes() ?: throw IllegalStateException("Cuerpo vacío")
             }
         }
+
+    fun formatOffset(): String {
+        val resp = state.value?.response
+        val highlight = resp?.highlight_sec ?: 0
+        val offset = resp?.offset_frames ?: 0
+        return when {
+            highlight > 0 -> "Highlight: ${Formatter.fmtMs(highlight * 1000)}"
+            offset > 0 -> "Highlight: ${Formatter.fmtMs(AudioUtils.framesToMs(offset))}"
+            else -> "Highlight: —"
+        }
+    }
+
+    fun formatBestMatches(): String {
+        val v = state.value?.response?.bestMatches
+        return "Matches at best offset: ${v ?: "—"}"
+    }
+
+    fun formatTotalMatches(): String {
+        val v = state.value?.response?.totalMatches
+        return "Total matches: ${v ?: "—"}"
+    }
+
+    fun formatPredictedGenre(): String {
+        val r = state.value?.response
+        val confidence = r?.confidence?.let { " • conf ${"%.3f".format(it)}" } ?: ""
+        return "Predicted: ${r?.predictedGenre ?: "—"}$confidence"
+    }
+
+    private fun fmtFeatureRow(label: String, value: Double?): String {
+        return "%s: %s".format(label, value?.let { "%.4f".format(it) } ?: "—")
+    }
+
+    fun formatFeatures(): String {
+        val clip = state.value?.response?.clipFeatures
+        val ideal = state.value?.response?.idealFeatures
+        if (clip == null && ideal == null) return "Features: —"
+        val clipText = listOf(
+            fmtFeatureRow("rms", clip?.rms),
+            fmtFeatureRow("zcr", clip?.zcr),
+            fmtFeatureRow("sc_hz", clip?.sc_hz)
+        ).joinToString("  ")
+        val idealText = listOf(
+            fmtFeatureRow("rms", ideal?.rms),
+            fmtFeatureRow("zcr", ideal?.zcr),
+            fmtFeatureRow("sc_hz", ideal?.sc_hz)
+        ).joinToString("  ")
+        return "Clip →  $clipText\nIdeal → $idealText"
+    }
+
+    fun formatDistances(): String {
+        val d = state.value?.response?.genreDistances ?: return "Distances: —"
+        val sorted = d.toList().sortedBy { it.second }
+        val rows = sorted.joinToString("\n") { (g, v) ->
+            "%s: %.4f".format(g, v)
+        }
+        return "Distances:\n$rows"
+    }
 
     override fun onCleared() {
         super.onCleared()

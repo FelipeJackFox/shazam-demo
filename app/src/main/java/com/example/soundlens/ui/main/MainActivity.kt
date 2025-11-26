@@ -11,6 +11,7 @@ import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ArrayAdapter
@@ -38,6 +39,11 @@ import java.io.InputStreamReader
 import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val MAX_TIMEOUT_RETRIES = 3
+    }
 
     private lateinit var binding: ActivityMainBinding
 
@@ -127,6 +133,11 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        scope.launch(Dispatchers.IO) {
+            Log.d(TAG, "Warming up lambda")
+            LambdaInvoker.warmup(this@MainActivity)
+        }
+
         setupExamplesDropdown()
         setupMainButton()
 
@@ -155,24 +166,8 @@ class MainActivity : AppCompatActivity() {
                         return@launch
                     }
 
-                    val s3Key = withContext(Dispatchers.IO) {
-                        S3Uploader.uploadAudio(this@MainActivity, fileToUpload)
-                    }
-
-                    binding.btnSend.text = "Identifying…"
-
-                    val requestId = "run_${UUID.randomUUID()}"
-                    val lambdaJson = withContext(Dispatchers.IO) {
-                        // 👇 Usa tu LambdaInvoker actual (con requestId)
-                        LambdaInvoker.identifyFromS3(
-                            context = this@MainActivity,
-                            functionName = "shazam-indexer",
-                            bucket = AwsConfig.BUCKET,
-                            key = s3Key,
-                            requestId = requestId
-                        )
-                    }
-
+                    val baseRequestId = "run_${UUID.randomUUID()}"
+                    val lambdaJson = identifyWithRetries(fileToUpload, baseRequestId)
                     val resp = Gson().fromJson(lambdaJson, IdentifyResponse::class.java)
                     if (resp.ok != true) {
                         Toast.makeText(this@MainActivity, lambdaJson, Toast.LENGTH_LONG).show()
@@ -189,12 +184,16 @@ class MainActivity : AppCompatActivity() {
                         putExtra("matches_for_song", resp.matches_for_song ?: -1)
                         putExtra("matches_at_best_offset", resp.matches_at_best_offset ?: -1)
                         putExtra("confidence", resp.confidence ?: 0.0)
-                        putExtra("request_id", resp.request_id ?: requestId)
+                        putExtra("request_id", resp.request_id ?: baseRequestId)
                     }
                     startActivity(i)
 
                 } catch (e: Exception) {
-                    Toast.makeText(this@MainActivity, "Error: ${e::class.java.simpleName} ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Error: ${e::class.java.simpleName} ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
                 } finally {
                     binding.btnSend.isEnabled = true
                     binding.btnSend.text = getString(R.string.send)
@@ -404,6 +403,48 @@ class MainActivity : AppCompatActivity() {
                 binding.btnTrash.visibility = View.VISIBLE
             }
         }
+    }
+
+    private suspend fun identifyWithRetries(file: File, baseRequestId: String): String {
+        var lastError: Exception? = null
+        repeat(MAX_TIMEOUT_RETRIES) { attemptIndex ->
+            val attempt = attemptIndex + 1
+            try {
+                Log.d(TAG, "Identify attempt $attempt/$MAX_TIMEOUT_RETRIES: uploading ${file.name}")
+                val s3Key = withContext(Dispatchers.IO) {
+                    S3Uploader.uploadAudio(this@MainActivity, file)
+                }
+                Log.d(TAG, "Identify attempt $attempt: uploaded to $s3Key")
+
+                binding.btnSend.text = "Identifying… (try $attempt)"
+
+                val lambdaJson = withContext(Dispatchers.IO) {
+                    LambdaInvoker.identifyFromS3(
+                        context = this@MainActivity,
+                        functionName = "shazam-indexer",
+                        bucket = AwsConfig.BUCKET,
+                        key = s3Key,
+                        requestId = "$baseRequestId-$attempt"
+                    )
+                }
+
+                Log.d(TAG, "Identify attempt $attempt response: $lambdaJson")
+
+                if (lambdaJson.contains("Task timed out", ignoreCase = true)) {
+                    throw RuntimeException("Lambda timeout")
+                }
+                return lambdaJson
+            } catch (e: Exception) {
+                lastError = e
+                val isTimeout = (e.message ?: "").contains("timeout", ignoreCase = true)
+                Log.d(TAG, "Identify attempt $attempt failed: ${e.message}")
+                if (!isTimeout || attempt >= MAX_TIMEOUT_RETRIES) {
+                    throw e
+                }
+                binding.btnSend.text = "Retrying… (${attempt + 1}/${MAX_TIMEOUT_RETRIES})"
+            }
+        }
+        throw lastError ?: RuntimeException("Unknown error")
     }
 
     private fun readAssetText(name: String): String =
