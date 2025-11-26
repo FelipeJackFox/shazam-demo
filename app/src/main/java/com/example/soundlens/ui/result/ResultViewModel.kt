@@ -69,6 +69,11 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             highlightMs = startHighlightMs
         )
 
+        viewModelScope.launch(Dispatchers.IO) {
+            val coverUrl = buildCoverUrl(resp)
+            _state.postValue(_state.value!!.copy(albumCoverUrl = coverUrl))
+        }
+
         viewModelScope.launch { downloadAndPrepare(resp) }
     }
 
@@ -231,6 +236,29 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         }
         val mappedFolder = Presigner.mapGenreToFolder(genre)
         return "songs/$mappedFolder/${clean.substringAfterLast('/')}"
+    }
+
+    private fun buildCoverUrl(resp: IdentifyResponse?): String? {
+        val name = coverFileNameFrom(resp) ?: return null
+        val key = "AlbumCovers/$name"
+        return try {
+            Presigner.presign(AwsConfig.BUCKET, key)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error presigning cover $key", e)
+            null
+        }
+    }
+
+    private fun coverFileNameFrom(resp: IdentifyResponse?): String? {
+        val rawPath = resp?.path?.takeIf { it.isNotBlank() }
+            ?: resp?.top_matches?.firstOrNull()?.path?.takeIf { !it.isNullOrBlank() }
+            ?: return null
+        val clean = rawPath.replace("\\", "/")
+        val fileName = clean.substringAfterLast('/')
+        if (fileName.isBlank()) return null
+        val base = fileName.substringBeforeLast('.', fileName)
+        if (base.isBlank()) return null
+        return "$base.jpg"
     }
     private fun getPlayableUrl(resp: IdentifyResponse?): String? {
         if (resp == null) return null

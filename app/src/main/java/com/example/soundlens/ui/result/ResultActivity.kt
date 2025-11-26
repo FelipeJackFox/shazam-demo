@@ -9,6 +9,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
+import coil.load
 import com.example.soundlens.R
 import com.example.soundlens.databinding.ActivityResultBinding
 import com.example.soundlens.ui.graph.GraphActivity
@@ -89,6 +90,12 @@ class ResultActivity : AppCompatActivity() {
             binding.txtSong.text = s.metaTitle
             binding.txtMeta.text = s.metaSubtitle
             binding.progress.visibility = if (s.loading && !s.audioReady) View.VISIBLE else View.GONE
+            binding.imgCover.load(s.albumCoverUrl) {
+                crossfade(true)
+                placeholder(R.drawable.soundlens_logo)
+                error(R.drawable.soundlens_logo)
+                fallback(R.drawable.soundlens_logo)
+            }
 
             val totalDuration = (s.durationMs.takeIf { it > 0 } ?: (s.elapsedMs + s.remainingMs)).coerceAtLeast(0)
 
