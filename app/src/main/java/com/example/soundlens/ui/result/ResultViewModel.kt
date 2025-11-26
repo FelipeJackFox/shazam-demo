@@ -2,6 +2,7 @@ package com.example.soundlens.ui.result
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -25,6 +26,8 @@ import java.io.File
 
 class ResultViewModel(app: Application) : AndroidViewModel(app) {
 
+    companion object { private const val TAG = "ResultVM" }
+
     private val _state = MutableLiveData(ResultUiState())
     val state: LiveData<ResultUiState> = _state
 
@@ -32,6 +35,9 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
     private var ticker: Job? = null
     private var startHighlightMs: Int = 0
 
+    init {
+        player.setLogger { msg -> Log.d(TAG, msg) }
+    }
     fun initWithPayload(
         payloadJson: String,
         title: String,
@@ -46,6 +52,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             offsetFrames > 0 -> AudioUtils.framesToMs(offsetFrames)
             else -> 0
         }
+        Log.d(TAG, "Init payload with highlightMs=$startHighlightMs title=$title artist=$artist year=$year genre=$genre")
         val subtitle = buildString {
             append(artist)
             if (year > 0) append(" • $year")
@@ -65,6 +72,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
 
     fun togglePlay() {
         if (_state.value?.audioReady != true) return
+        Log.d(TAG, "togglePlay() from isPlaying=${player.isPlaying()}")
         if (player.isPlaying()) {
             player.pause()
             stopTicker()
@@ -78,6 +86,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
 
     fun seekTo(ms: Int) {
         if (_state.value?.audioReady != true) return
+        Log.d(TAG, "seekTo($ms)")
         player.seekTo(ms)
         _state.value = _state.value!!.copy(
             elapsedMs = ms,
@@ -95,23 +104,31 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
 
+            Log.d(TAG, "Downloading audio from $playable")
+
             val bytes = httpGetBytes(playable)
+            Log.d(TAG, "Downloaded ${bytes.size} bytes from S3")
             val ctx = getApplication<Application>()
             val f = File.createTempFile("song_", AudioUtils.guessExt(playable), ctx.cacheDir)
             f.outputStream().use { it.write(bytes) }
+            Log.d(TAG, "Audio cached at ${f.absolutePath}")
 
-            player.setOnPrepared {
-                if (startHighlightMs > 0) runCatching { player.seekTo(startHighlightMs) }
-                player.start()
+            player.setOnPrepared { mp ->
+                val duration = mp.duration.coerceAtLeast(0)
+                val current = mp.currentPosition.coerceAtLeast(0)
+                Log.d(TAG, "player prepared (duration=$duration, pos=$current), starting ticker")
                 startTicker()
                 _state.postValue(_state.value!!.copy(
                     loading = false,
                     audioReady = true,
-                    isPlaying = true,
+                    isPlaying = mp.isPlaying,
+                    elapsedMs = current,
+                    remainingMs = (duration - current).coerceAtLeast(0),
                     localFile = f
                 ))
             }
             player.setOnCompletion {
+                Log.d(TAG, "player completed")
                 stopTicker()
                 _state.postValue(_state.value!!.copy(
                     isPlaying = false,
@@ -119,8 +136,19 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
                     remainingMs = 0
                 ))
             }
-            player.prepare(f.absolutePath)
+            player.setOnError { what, extra ->
+                Log.e(TAG, "MediaPlayer error what=$what extra=$extra")
+                stopTicker()
+                _state.postValue(_state.value!!.copy(
+                    loading = false,
+                    isPlaying = false,
+                    audioReady = false,
+                    error = "Playback error ($what/$extra)"
+                ))
+            }
+            player.prepare(f.absolutePath, startHighlightMs, playWhenReady = true)
         } catch (e: Exception) {
+            Log.e(TAG, "Error preparando audio", e)
             _state.postValue(_state.value!!.copy(loading = false, error = "${e::class.java.simpleName}: ${e.message}"))
         }
     }
@@ -131,6 +159,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 val dur = player.duration().coerceAtLeast(0)
                 val pos = player.currentPosition().coerceAtLeast(0)
+                Log.d(TAG, "ticker dur=$dur pos=$pos playing=${player.isPlaying()}")
                 _state.value = _state.value!!.copy(
                     elapsedMs = pos,
                     remainingMs = (dur - pos).coerceAtLeast(0),
@@ -154,25 +183,45 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             if (host.startsWith("$bucket.s3")) path else null
         } catch (_: Exception) { null }
 
+    private fun buildKeyFromPath(rawPath: String?, genre: String?): String? {
+        if (rawPath.isNullOrBlank()) return null
+        val clean = rawPath.replace("\\", "/").removePrefix("/")
+        if (clean.startsWith("songs/")) return clean
+        if (clean.startsWith("audio_corpus/", true)) {
+            val stripped = clean.removePrefix("audio_corpus/")
+            val parts = stripped.split('/')
+            val fileName = parts.lastOrNull() ?: return null
+            val folder = parts.dropLast(1).lastOrNull()
+            val mappedFolder = folder ?: Presigner.mapGenreToFolder(genre)
+            return "songs/$mappedFolder/$fileName"
+        }
+        val mappedFolder = Presigner.mapGenreToFolder(genre)
+        return "songs/$mappedFolder/${clean.substringAfterLast('/')}"
+    }
     private fun getPlayableUrl(resp: IdentifyResponse?): String? {
         if (resp == null) return null
         val keyFromRoot = resp.s3_key?.takeIf { !it.isNullOrBlank() }
         val keyFromTop  = resp.top_matches?.firstOrNull()?.s3_key?.takeIf { !it.isNullOrBlank() }
-        val key = keyFromRoot ?: keyFromTop
+        val keyFromPath = buildKeyFromPath(resp.path, resp.genre)
+        val key = keyFromRoot ?: keyFromTop ?: keyFromPath
         if (key != null) {
             val clean = key.trim().removePrefix("/").replace("\\", "/")
             val finalKey = if (clean.contains("/")) clean
             else "songs/${Presigner.mapGenreToFolder(resp.genre)}/$clean"
+            Log.d(TAG, "Using S3 key=$finalKey (raw=${resp.s3_key}, top=${resp.top_matches?.firstOrNull()?.s3_key}, path=$keyFromPath)")
             return Presigner.presign(AwsConfig.BUCKET, finalKey)
         }
 
         resp.s3_url?.let { raw ->
+            Log.d(TAG, "Using provided s3_url=$raw")
             if (isPresigned(raw) || !raw.contains(".s3.", true)) return raw
             extractKeyFromS3Url(raw, AwsConfig.BUCKET)?.let { k ->
+                Log.d(TAG, "Presigning extracted key from s3_url: $k")
                 return Presigner.presign(AwsConfig.BUCKET, k)
             }
             return raw
         }
+        Log.e(TAG, "No playable URL found (s3_key, top_match key, path, s3_url all missing)")
         return null
     }
 
@@ -180,8 +229,10 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.IO) {
             val client = OkHttpClient()
             val req = Request.Builder().url(url).build()
+            Log.d(TAG, "HTTP GET $url")
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code} al descargar audio")
+                Log.d(TAG, "HTTP ${resp.code} received for audio")
                 resp.body?.bytes() ?: throw IllegalStateException("Cuerpo vacío")
             }
         }

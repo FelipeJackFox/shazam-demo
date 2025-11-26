@@ -11,6 +11,9 @@ class AudioPlayer {
     private var mp: MediaPlayer? = null
     private var onPreparedCb: ((MediaPlayer) -> Unit)? = null
     private var onCompletionCb: ((MediaPlayer) -> Unit)? = null
+    private var onErrorCb: ((what: Int, extra: Int) -> Unit)? = null
+    private var logger: ((String) -> Unit)? = null
+    private var prepared: Boolean = false
 
     fun setOnPrepared(block: (MediaPlayer) -> Unit) {
         onPreparedCb = block
@@ -20,8 +23,17 @@ class AudioPlayer {
         onCompletionCb = block
     }
 
-    fun prepare(path: String) {
+    fun setOnError(block: (what: Int, extra: Int) -> Unit) {
+        onErrorCb = block
+    }
+
+    fun setLogger(block: (String) -> Unit) {
+        logger = block
+    }
+    fun prepare(path: String, startMs: Int = 0, playWhenReady: Boolean = false) {
+        log("prepare(path=$path, startMs=$startMs, playWhenReady=$playWhenReady)")
         release()
+        prepared = false
         mp = MediaPlayer().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -29,25 +41,71 @@ class AudioPlayer {
                     .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                     .build()
             )
-            setOnPreparedListener { onPreparedCb?.invoke(it) }
-            setOnCompletionListener { onCompletionCb?.invoke(it) }
-            setOnErrorListener { _, _, _ -> true }
-            setDataSource(path)
+            setOnPreparedListener {
+                prepared = true
+                log("onPrepared() duration=${it.duration}")
+                if (startMs > 0) runCatching {
+                    log("seeking to $startMs ms")
+                    it.seekTo(startMs)
+                }.onFailure { e -> log("seek failed: ${e.message}") }
+                onPreparedCb?.invoke(it)
+                if (playWhenReady) {
+                    runCatching {
+                        log("auto-starting playback")
+                        it.start()
+                    }.onFailure { e -> log("start failed: ${e.message}") }
+                }
+            }
+            setOnCompletionListener {
+                log("onCompletion()")
+                onCompletionCb?.invoke(it)
+            }
+            setOnErrorListener { _, what, extra ->
+                log("onError(what=$what, extra=$extra)")
+                onErrorCb?.invoke(what, extra)
+                true
+            }
+            runCatching { setDataSource(path) }
+                .onFailure { e -> log("setDataSource failed: ${e.message}") }
             prepareAsync()
+            log("prepareAsync() issued")
         }
     }
 
-    fun start() { mp?.start() }
-    fun pause() { mp?.pause() }
+    fun start() {
+        if (!prepared) {
+            log("start() ignored: not prepared")
+            return
+        }
+        log("start()")
+        runCatching { mp?.start() }.onFailure { e -> log("start failed: ${e.message}") }
+    }
+    fun pause() {
+        log("pause()")
+        runCatching { mp?.pause() }.onFailure { e -> log("pause failed: ${e.message}") }
+    }
     fun isPlaying(): Boolean = mp?.isPlaying == true
-    fun seekTo(ms: Int) { runCatching { mp?.seekTo(ms) } }
-    fun duration(): Int = mp?.duration ?: 0
-    fun currentPosition(): Int = mp?.currentPosition ?: 0
+    fun seekTo(ms: Int) {
+        if (!prepared) {
+            log("seekTo($ms) ignored: not prepared")
+            return
+        }
+        runCatching { mp?.seekTo(ms) }
+            .onSuccess { log("seekTo($ms) ok") }
+            .onFailure { e -> log("seekTo($ms) failed: ${e.message}") }
+    }
+
+    fun duration(): Int = if (prepared) mp?.duration ?: 0 else 0
+    fun currentPosition(): Int = if (prepared) mp?.currentPosition ?: 0 else 0
 
     fun release() {
-        try { mp?.release() } catch (_: Exception) {}
+        log("release()")
+        prepared = false
+        runCatching { mp?.release() } // ignore failures
         mp = null
         onPreparedCb = null
         onCompletionCb = null
+        onErrorCb = null
     }
+    private fun log(msg: String) { logger?.invoke("AudioPlayer: $msg") }
 }

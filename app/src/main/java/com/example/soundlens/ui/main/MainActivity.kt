@@ -45,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_TIMEOUT_RETRIES = 3
     }
 
-    lateinit var binding: ActivityMainBinding
+    private lateinit var binding: ActivityMainBinding
 
     // Grabación WAV
     private var wavRecorder: WavRecorder? = null
