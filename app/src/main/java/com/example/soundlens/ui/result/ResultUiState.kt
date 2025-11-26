@@ -14,6 +14,7 @@ data class ResultUiState(
     val prettyJson: String = "",
     val metaTitle: String = "—",
     val metaSubtitle: String = "—",
+    val albumCoverUrl: String? = null,
     val response: IdentifyResponse? = null,
     val localFile: File? = null,
     val showRadar: Boolean = false,
