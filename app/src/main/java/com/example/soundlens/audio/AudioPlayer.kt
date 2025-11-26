@@ -48,13 +48,15 @@ class AudioPlayer {
                     log("seeking to $startMs ms")
                     it.seekTo(startMs)
                 }.onFailure { e -> log("seek failed: ${e.message}") }
-                onPreparedCb?.invoke(it)
+
                 if (playWhenReady) {
                     runCatching {
                         log("auto-starting playback")
                         it.start()
                     }.onFailure { e -> log("start failed: ${e.message}") }
                 }
+
+                onPreparedCb?.invoke(it)
             }
             setOnCompletionListener {
                 log("onCompletion()")

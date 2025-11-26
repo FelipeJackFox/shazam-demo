@@ -9,6 +9,8 @@ data class ResultUiState(
     val isPlaying: Boolean = false,
     val elapsedMs: Int = 0,
     val remainingMs: Int = 0,
+    val durationMs: Int = 0,
+    val highlightMs: Int = 0,
     val prettyJson: String = "",
     val metaTitle: String = "—",
     val metaSubtitle: String = "—",
