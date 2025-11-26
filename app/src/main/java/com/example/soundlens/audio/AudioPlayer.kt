@@ -32,7 +32,7 @@ class AudioPlayer {
     }
     fun prepare(path: String, startMs: Int = 0, playWhenReady: Boolean = false) {
         log("prepare(path=$path, startMs=$startMs, playWhenReady=$playWhenReady)")
-        release()
+        release(clearCallbacks = false)
         prepared = false
         mp = MediaPlayer().apply {
             setAudioAttributes(
@@ -100,14 +100,16 @@ class AudioPlayer {
     fun duration(): Int = if (prepared) mp?.duration ?: 0 else 0
     fun currentPosition(): Int = if (prepared) mp?.currentPosition ?: 0 else 0
 
-    fun release() {
-        log("release()")
+    fun release(clearCallbacks: Boolean = true) {
+        log("release(clearCallbacks=$clearCallbacks)")
         prepared = false
         runCatching { mp?.release() } // ignore failures
         mp = null
-        onPreparedCb = null
-        onCompletionCb = null
-        onErrorCb = null
+        if (clearCallbacks) {
+            onPreparedCb = null
+            onCompletionCb = null
+            onErrorCb = null
+        }
     }
     private fun log(msg: String) { logger?.invoke("AudioPlayer: $msg") }
 }
