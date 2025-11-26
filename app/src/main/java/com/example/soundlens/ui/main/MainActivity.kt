@@ -45,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_TIMEOUT_RETRIES = 3
     }
 
-    private lateinit var binding: ActivityMainBinding
+    lateinit var binding: ActivityMainBinding
 
     // Grabación WAV
     private var wavRecorder: WavRecorder? = null
@@ -168,6 +168,7 @@ class MainActivity : AppCompatActivity() {
 
                     val baseRequestId = "run_${UUID.randomUUID()}"
                     val lambdaJson = identifyWithRetries(fileToUpload, baseRequestId)
+
                     val resp = Gson().fromJson(lambdaJson, IdentifyResponse::class.java)
                     if (resp.ok != true) {
                         Toast.makeText(this@MainActivity, lambdaJson, Toast.LENGTH_LONG).show()
@@ -185,6 +186,7 @@ class MainActivity : AppCompatActivity() {
                         putExtra("matches_at_best_offset", resp.matches_at_best_offset ?: -1)
                         putExtra("confidence", resp.confidence ?: 0.0)
                         putExtra("request_id", resp.request_id ?: baseRequestId)
+
                     }
                     startActivity(i)
 
@@ -451,6 +453,48 @@ class MainActivity : AppCompatActivity() {
         assets.open(name).use { input ->
             BufferedReader(InputStreamReader(input)).use { it.readText() }
         }
+
+    private suspend fun identifyWithRetries(file: File, baseRequestId: String): String {
+        var lastError: Exception? = null
+        repeat(MAX_TIMEOUT_RETRIES) { attemptIndex ->
+            val attempt = attemptIndex + 1
+            try {
+                Log.d(TAG, "Identify attempt $attempt/$MAX_TIMEOUT_RETRIES: uploading ${file.name}")
+                val s3Key = withContext(Dispatchers.IO) {
+                    S3Uploader.uploadAudio(this@MainActivity, file)
+                }
+                Log.d(TAG, "Identify attempt $attempt: uploaded to $s3Key")
+
+                binding.btnSend.text = "Identifying… (try $attempt)"
+
+                val lambdaJson = withContext(Dispatchers.IO) {
+                    LambdaInvoker.identifyFromS3(
+                        context = this@MainActivity,
+                        functionName = "shazam-indexer",
+                        bucket = AwsConfig.BUCKET,
+                        key = s3Key,
+                        requestId = "$baseRequestId-$attempt"
+                    )
+                }
+
+                Log.d(TAG, "Identify attempt $attempt response: $lambdaJson")
+
+                if (lambdaJson.contains("Task timed out", ignoreCase = true)) {
+                    throw RuntimeException("Lambda timeout")
+                }
+                return lambdaJson
+            } catch (e: Exception) {
+                lastError = e
+                val isTimeout = (e.message ?: "").contains("timeout", ignoreCase = true)
+                Log.d(TAG, "Identify attempt $attempt failed: ${e.message}")
+                if (!isTimeout || attempt >= MAX_TIMEOUT_RETRIES) {
+                    throw e
+                }
+                binding.btnSend.text = "Retrying… (${attempt + 1}/${MAX_TIMEOUT_RETRIES})"
+            }
+        }
+        throw lastError ?: RuntimeException("Unknown error")
+    }
 
     override fun onDestroy() {
         super.onDestroy()

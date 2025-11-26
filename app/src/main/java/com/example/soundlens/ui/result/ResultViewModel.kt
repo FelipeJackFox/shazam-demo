@@ -217,6 +217,62 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
                 resp.body?.bytes() ?: throw IllegalStateException("Cuerpo vacío")
             }
         }
+    fun formatOffset(): String {
+        val resp = state.value?.response
+        val highlight = resp?.highlight_sec ?: 0
+        val offset = resp?.offset_frames ?: 0
+        return when {
+            highlight > 0 -> "Highlight: ${Formatter.fmtMs(highlight * 1000)}"
+            offset > 0 -> "Highlight: ${Formatter.fmtMs(AudioUtils.framesToMs(offset))}"
+            else -> "Highlight: —"
+        }
+    }
+
+    fun formatBestMatches(): String {
+        val v = state.value?.response?.bestMatches
+        return "Matches at best offset: ${v ?: "—"}"
+    }
+
+    fun formatTotalMatches(): String {
+        val v = state.value?.response?.totalMatches
+        return "Total matches: ${v ?: "—"}"
+    }
+
+    fun formatPredictedGenre(): String {
+        val r = state.value?.response
+        val confidence = r?.confidence?.let { " • conf ${"%.3f".format(it)}" } ?: ""
+        return "Predicted: ${r?.predictedGenre ?: "—"}$confidence"
+    }
+
+    private fun fmtFeatureRow(label: String, value: Double?): String {
+        return "%s: %s".format(label, value?.let { "%.4f".format(it) } ?: "—")
+    }
+
+    fun formatFeatures(): String {
+        val clip = state.value?.response?.clipFeatures
+        val ideal = state.value?.response?.idealFeatures
+        if (clip == null && ideal == null) return "Features: —"
+        val clipText = listOf(
+            fmtFeatureRow("rms", clip?.rms),
+            fmtFeatureRow("zcr", clip?.zcr),
+            fmtFeatureRow("sc_hz", clip?.sc_hz)
+        ).joinToString("  ")
+        val idealText = listOf(
+            fmtFeatureRow("rms", ideal?.rms),
+            fmtFeatureRow("zcr", ideal?.zcr),
+            fmtFeatureRow("sc_hz", ideal?.sc_hz)
+        ).joinToString("  ")
+        return "Clip →  $clipText\nIdeal → $idealText"
+    }
+
+    fun formatDistances(): String {
+        val d = state.value?.response?.genreDistances ?: return "Distances: —"
+        val sorted = d.toList().sortedBy { it.second }
+        val rows = sorted.joinToString("\n") { (g, v) ->
+            "%s: %.4f".format(g, v)
+        }
+        return "Distances:\n$rows"
+    }
 
     fun formatOffset(): String {
         val resp = state.value?.response
