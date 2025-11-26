@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -64,7 +65,8 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             metaSubtitle = subtitle,
             response = resp,
             showRadar = (resp?.clipFeatures != null && resp.idealFeatures != null),
-            error = null
+            error = null,
+            highlightMs = startHighlightMs
         )
 
         viewModelScope.launch { downloadAndPrepare(resp) }
@@ -86,12 +88,32 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
 
     fun seekTo(ms: Int) {
         if (_state.value?.audioReady != true) return
-        Log.d(TAG, "seekTo($ms)")
-        player.seekTo(ms)
+        val target = ms.coerceIn(0, totalDuration())
+        Log.d(TAG, "seekTo($target)")
+        player.seekTo(target)
         _state.value = _state.value!!.copy(
-            elapsedMs = ms,
-            remainingMs = (player.duration() - ms).coerceAtLeast(0)
+            elapsedMs = target,
+            remainingMs = (totalDuration() - target).coerceAtLeast(0),
+            isPlaying = player.isPlaying()
         )
+    }
+
+    fun seekBy(deltaMs: Int) {
+        if (_state.value?.audioReady != true) return
+        val next = (player.currentPosition() + deltaMs).coerceIn(0, totalDuration())
+        seekTo(next)
+    }
+
+    fun restartFromHighlight() {
+        if (_state.value?.audioReady != true) return
+        val target = startHighlightMs.coerceIn(0, totalDuration())
+        Log.d(TAG, "restartFromHighlight() -> $target")
+        seekTo(target)
+        if (!player.isPlaying()) {
+            player.start()
+            startTicker()
+            _state.value = _state.value!!.copy(isPlaying = true)
+        }
     }
 
     private suspend fun downloadAndPrepare(resp: IdentifyResponse?) {
@@ -116,14 +138,17 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             player.setOnPrepared { mp ->
                 val duration = mp.duration.coerceAtLeast(0)
                 val current = mp.currentPosition.coerceAtLeast(0)
-                Log.d(TAG, "player prepared (duration=$duration, pos=$current), starting ticker")
-                startTicker()
+                val playing = mp.isPlaying
+                Log.d(TAG, "player prepared (duration=$duration, pos=$current, playing=$playing), updating UI")
+                if (playing) startTicker() else stopTicker()
                 _state.postValue(_state.value!!.copy(
                     loading = false,
                     audioReady = true,
-                    isPlaying = mp.isPlaying,
+                    isPlaying = playing,
                     elapsedMs = current,
                     remainingMs = (duration - current).coerceAtLeast(0),
+                    durationMs = duration,
+                    highlightMs = startHighlightMs,
                     localFile = f
                 ))
             }
@@ -133,7 +158,8 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
                 _state.postValue(_state.value!!.copy(
                     isPlaying = false,
                     elapsedMs = player.duration(),
-                    remainingMs = 0
+                    remainingMs = 0,
+                    durationMs = player.duration()
                 ))
             }
             player.setOnError { what, extra ->
@@ -156,13 +182,14 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
     private fun startTicker() {
         ticker?.cancel()
         ticker = viewModelScope.launch(Dispatchers.Main) {
-            while (true) {
-                val dur = player.duration().coerceAtLeast(0)
-                val pos = player.currentPosition().coerceAtLeast(0)
+            while (isActive) {
+                val dur = totalDuration().coerceAtLeast(0)
+                val pos = player.currentPosition().coerceIn(0, dur)
                 Log.d(TAG, "ticker dur=$dur pos=$pos playing=${player.isPlaying()}")
                 _state.value = _state.value!!.copy(
                     elapsedMs = pos,
                     remainingMs = (dur - pos).coerceAtLeast(0),
+                    durationMs = dur,
                     isPlaying = player.isPlaying()
                 )
                 delay(500)
@@ -171,6 +198,13 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun stopTicker() { ticker?.cancel(); ticker = null }
+
+    fun hasHighlight(): Boolean = startHighlightMs > 0
+
+    private fun totalDuration(): Int {
+        val fromState = _state.value?.durationMs ?: 0
+        return if (fromState > 0) fromState else player.duration()
+    }
 
     private fun isPresigned(url: String): Boolean =
         url.contains("X-Amz-Algorithm=", true) || url.contains("X-Amz-Signature=", true)
@@ -237,6 +271,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     fun formatOffset(): String {
+        if (startHighlightMs > 0) return "Highlight: ${Formatter.fmtMs(startHighlightMs)}"
         val resp = state.value?.response
         val highlight = resp?.highlight_sec ?: 0
         val offset = resp?.offset_frames ?: 0

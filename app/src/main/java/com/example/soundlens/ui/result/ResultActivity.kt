@@ -59,6 +59,9 @@ class ResultActivity : AppCompatActivity() {
 
     private fun setupClicks() {
         binding.btnPlay.setOnClickListener { vm.togglePlay() }
+        binding.btnForward.setOnClickListener { vm.seekBy(10_000) }
+        binding.btnRewind.setOnClickListener { vm.seekBy(-10_000) }
+        binding.btnJumpHighlight.setOnClickListener { vm.restartFromHighlight() }
         binding.seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) binding.txtElapsed.text = Formatter.fmtMs(progress)
@@ -84,13 +87,35 @@ class ResultActivity : AppCompatActivity() {
         vm.state.observe(this) { s ->
             binding.txtSong.text = s.metaTitle
             binding.txtMeta.text = s.metaSubtitle
-            binding.progress.visibility = if (s.loading) View.VISIBLE else View.GONE
+            binding.progress.visibility = if (s.loading && !s.audioReady) View.VISIBLE else View.GONE
+
+            val totalDuration = (s.durationMs.takeIf { it > 0 } ?: (s.elapsedMs + s.remainingMs)).coerceAtLeast(0)
+
+            binding.playerControlsGroup.visibility = if (s.audioReady) View.VISIBLE else View.GONE
+            binding.playerLoadingGroup.visibility = if (s.loading && !s.audioReady) View.VISIBLE else View.GONE
+
+            binding.btnPlay.isEnabled = s.audioReady
+            binding.btnForward.isEnabled = s.audioReady
+            binding.btnRewind.isEnabled = s.audioReady
+            binding.btnJumpHighlight.isEnabled = s.audioReady && vm.hasHighlight()
+            binding.seek.isEnabled = s.audioReady
 
             binding.btnPlay.setImageResource(if (s.isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
-            binding.seek.max = s.elapsedMs + s.remainingMs
-            binding.seek.progress = s.elapsedMs
+            binding.seek.max = totalDuration.coerceAtLeast(1)
+            binding.seek.progress = s.elapsedMs.coerceIn(0, binding.seek.max)
             binding.txtElapsed.text = Formatter.fmtMs(s.elapsedMs)
             binding.txtRemaining.text = "-${Formatter.fmtMs(s.remainingMs)}"
+            binding.txtDuration.text = Formatter.fmtMs(totalDuration)
+
+            binding.txtPlayerTitle.text = s.metaTitle
+            binding.txtPlayerStatus.text = when {
+                s.loading && !s.audioReady -> "Preparando preview..."
+                s.isPlaying -> "Reproduciendo preview"
+                s.audioReady -> "En pausa"
+                else -> "Esperando audio..."
+            }
+            binding.txtPlayerHighlight.text = vm.formatOffset()
+            binding.btnJumpHighlight.visibility = if (vm.hasHighlight()) View.VISIBLE else View.GONE
 
             binding.txtDebug.text = s.prettyJson
 
