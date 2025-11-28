@@ -341,12 +341,18 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         val clipText = listOf(
             fmtFeatureRow("rms", clip?.rms),
             fmtFeatureRow("zcr", clip?.zcr),
-            fmtFeatureRow("sc_hz", clip?.sc_hz)
+            fmtFeatureRow("sc_hz", clip?.sc_hz),
+            fmtFeatureRow("spec_entropy", clip?.spec_entropy),
+            fmtFeatureRow("spec_kurtosis", clip?.spec_kurtosis),
+            fmtFeatureRow("plef", clip?.plef)
         ).joinToString("  ")
         val idealText = listOf(
             fmtFeatureRow("rms", ideal?.rms),
             fmtFeatureRow("zcr", ideal?.zcr),
-            fmtFeatureRow("sc_hz", ideal?.sc_hz)
+            fmtFeatureRow("sc_hz", ideal?.sc_hz),
+            fmtFeatureRow("spec_entropy", ideal?.spec_entropy),
+            fmtFeatureRow("spec_kurtosis", ideal?.spec_kurtosis),
+            fmtFeatureRow("plef", ideal?.plef)
         ).joinToString("  ")
         return "Clip →  $clipText\nIdeal → $idealText"
     }

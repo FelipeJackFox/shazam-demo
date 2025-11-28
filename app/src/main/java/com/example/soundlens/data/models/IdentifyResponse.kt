@@ -85,7 +85,10 @@ data class IdentifyResponse(
 data class Features(
     val rms: Double? = null,
     val zcr: Double? = null,
-    val sc_hz: Double? = null
+    val sc_hz: Double? = null,
+    val spec_entropy: Double? = null,
+    val spec_kurtosis: Double? = null,
+    val plef: Double? = null
 )
 
 data class AudioAnalysis(
