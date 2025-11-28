@@ -276,21 +276,127 @@
             android:layout_marginTop="12dp"
             android:background="@color/sl_divider" />
 
-        <TextView
-            android:id="@+id/txtBestMatches"
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStats"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textColor="@color/sl_text_primary"
-            android:textSize="16sp" />
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/sl_black_elev"
+            app:cardCornerRadius="12dp"
+            app:cardUseCompatPadding="true">
 
-        <TextView
-            android:id="@+id/txtTotalMatches"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textColor="@color/sl_text_primary"
-            android:textSize="16sp" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="14dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:contentDescription="Best offset"
+                        android:src="@drawable/ic_offset"
+                        android:tint="@color/sl_text_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Best offset"
+                        android:textAllCaps="true"
+                        android:textColor="@color/sl_text_secondary"
+                        android:textSize="12sp"
+                        android:letterSpacing="0.06" />
+
+                    <TextView
+                        android:id="@+id/txtStatBestOffset"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="—"
+                        android:textColor="@color/sl_text_primary"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:contentDescription="Total matches"
+                        android:src="@drawable/ic_matches"
+                        android:tint="@color/sl_text_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Total matches"
+                        android:textAllCaps="true"
+                        android:textColor="@color/sl_text_secondary"
+                        android:textSize="12sp"
+                        android:letterSpacing="0.06" />
+
+                    <TextView
+                        android:id="@+id/txtStatTotalMatches"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="—"
+                        android:textColor="@color/sl_text_primary"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:contentDescription="Total hashes"
+                        android:src="@drawable/ic_hashes"
+                        android:tint="@color/sl_text_primary" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Total hashes"
+                        android:textAllCaps="true"
+                        android:textColor="@color/sl_text_secondary"
+                        android:textSize="12sp"
+                        android:letterSpacing="0.06" />
+
+                    <TextView
+                        android:id="@+id/txtStatTotalHashes"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="—"
+                        android:textColor="@color/sl_text_primary"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <androidx.cardview.widget.CardView
             android:id="@+id/radarCard"
@@ -308,48 +414,33 @@
                 android:padding="8dp" />
         </androidx.cardview.widget.CardView>
 
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardAnalysis"
+        <TextView
+            android:id="@+id/txtGenresTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="16dp"
+            android:text="Most likely genres for this clip:"
+            android:textColor="@color/sl_text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardGenres"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             app:cardBackgroundColor="@color/sl_card"
-            app:cardCornerRadius="8dp"
+            app:cardCornerRadius="12dp"
             app:cardUseCompatPadding="true">
 
-            <LinearLayout
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupGenres"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="12dp">
-
-                <TextView
-                    android:id="@+id/txtPredictedGenre"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textColor="@color/sl_text_primary"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/txtFeatureSummary"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textColor="@color/sl_text_secondary"
-                    android:textSize="14sp"
-                    android:fontFamily="monospace" />
-
-                <TextView
-                    android:id="@+id/txtDistances"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textColor="@color/sl_text_secondary"
-                    android:textSize="14sp"
-                    android:fontFamily="monospace" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
+                android:padding="12dp"
+                app:singleLine="false"
+                app:singleSelection="false" />
+        </com.google.android.material.card.MaterialCardView>
 
         <Button
             android:id="@+id/btnToggleDebug"
