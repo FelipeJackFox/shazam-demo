@@ -315,7 +315,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         val scores = resp.audio_analysis?.classification?.scores
         if (!scores.isNullOrEmpty()) {
             return scores.entries
-                .sortedByDescending { it.value }
+                .sortedBy { it.value }
                 .map { formatGenreLabel(it.key) }
                 .filter { it.isNotBlank() }
                 .distinct()
