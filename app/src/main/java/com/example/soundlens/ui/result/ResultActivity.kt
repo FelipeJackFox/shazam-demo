@@ -1,5 +1,6 @@
 package com.example.soundlens.ui.result
 
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.view.View
 import android.widget.SeekBar
@@ -11,8 +12,9 @@ import androidx.core.view.isVisible
 import coil.load
 import com.example.soundlens.R
 import com.example.soundlens.databinding.ActivityResultBinding
-import com.example.soundlens.uiutils.Formatter
 import com.example.soundlens.data.models.Features
+import com.example.soundlens.data.models.IdentifyResponse
+import com.example.soundlens.uiutils.Formatter
 import com.github.mikephil.charting.charts.RadarChart
 import com.github.mikephil.charting.components.Legend
 import com.github.mikephil.charting.components.XAxis
@@ -20,6 +22,7 @@ import com.github.mikephil.charting.data.RadarData
 import com.github.mikephil.charting.data.RadarDataSet
 import com.github.mikephil.charting.data.RadarEntry
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import com.google.android.material.chip.Chip
 
 private data class RadarMetric(val label: String, val extractor: (Features?) -> Double?)
 
@@ -131,11 +134,8 @@ class ResultActivity : AppCompatActivity() {
 
             binding.txtDebug.text = s.prettyJson
 
-            binding.txtBestMatches.text = vm.formatBestMatches()
-            binding.txtTotalMatches.text = vm.formatTotalMatches()
-            binding.txtPredictedGenre.text = vm.formatPredictedGenre()
-            binding.txtFeatureSummary.text = vm.formatFeatures()
-            binding.txtDistances.text = vm.formatDistances()
+            updateStatsCard(s.response)
+            updateGenreChips()
 
             if (s.showRadar) {
                 renderRadarChart()
@@ -145,6 +145,50 @@ class ResultActivity : AppCompatActivity() {
             }
 
             s.error?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    private fun updateStatsCard(response: IdentifyResponse?) {
+        binding.txtStatBestOffset.text = response?.bestMatches?.toString() ?: "—"
+        binding.txtStatTotalMatches.text = response?.totalMatches?.toString() ?: "—"
+        binding.txtStatTotalHashes.text = response?.clip_hashes?.toString() ?: "—"
+    }
+
+    private fun updateGenreChips() {
+        val genres = vm.topGenres()
+        val visible = genres.isNotEmpty()
+        binding.txtGenresTitle.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.cardGenres.visibility = if (visible) View.VISIBLE else View.GONE
+        binding.chipGroupGenres.removeAllViews()
+        if (!visible) return
+
+        val icon = ContextCompat.getDrawable(this, R.drawable.ic_logo_notes)
+        val textColor = ContextCompat.getColor(this, R.color.sl_text_primary)
+        genres.forEach { genre ->
+            val chip = Chip(this).apply {
+                text = genre
+                chipIcon = icon
+                chipIconTint = ColorStateList.valueOf(textColor)
+                chipBackgroundColor = ColorStateList.valueOf(ContextCompat.getColor(this@ResultActivity, genreColorFor(genre)))
+                isClickable = false
+                isCheckable = false
+                isFocusable = false
+                setTextColor(textColor)
+                textSize = 14f
+            }
+            binding.chipGroupGenres.addView(chip)
+        }
+    }
+
+    private fun genreColorFor(label: String): Int {
+        val lower = label.lowercase()
+        return when {
+            lower.contains("pop") -> R.color.genre_chip_pink
+            lower.contains("rock") || lower.contains("metal") -> R.color.genre_chip_purple
+            lower.contains("hip") || lower.contains("rap") -> R.color.genre_chip_orange
+            lower.contains("edm") || lower.contains("dance") || lower.contains("elect") -> R.color.genre_chip_blue
+            lower.contains("latin") || lower.contains("reggaeton") -> R.color.genre_chip_teal
+            else -> R.color.genre_chip_default
         }
     }
 
