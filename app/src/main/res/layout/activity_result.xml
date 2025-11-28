@@ -403,7 +403,7 @@
             android:layout_width="match_parent"
             android:layout_height="360dp"
             android:layout_marginTop="12dp"
-            app:cardBackgroundColor="@color/sl_card"
+            app:cardBackgroundColor="@color/sl_black_elev"
             app:cardCornerRadius="8dp"
             app:cardUseCompatPadding="true">
 
@@ -447,7 +447,7 @@
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_marginTop="16dp"
-            android:backgroundTint="@color/sl_card"
+            android:backgroundTint="@color/sl_black_elev"
             android:text="Debug log ▾"
             android:textAllCaps="false"
             android:textColor="@color/sl_text_primary" />
@@ -457,7 +457,7 @@
             android:layout_width="match_parent"
             android:layout_height="260dp"
             android:layout_marginTop="8dp"
-            android:background="@color/sl_card"
+            android:background="@color/sl_black_elev"
             android:padding="12dp"
             android:visibility="gone">
 
