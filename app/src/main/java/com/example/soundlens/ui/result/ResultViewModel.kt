@@ -64,7 +64,7 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
             metaTitle = title,
             metaSubtitle = subtitle,
             response = resp,
-            showRadar = (resp?.clipFeatures != null && resp.idealFeatures != null),
+            showRadar = resp?.clipFeatures != null,
             error = null,
             highlightMs = startHighlightMs
         )
