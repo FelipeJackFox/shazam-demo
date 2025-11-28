@@ -398,22 +398,6 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <androidx.cardview.widget.CardView
-            android:id="@+id/radarCard"
-            android:layout_width="match_parent"
-            android:layout_height="360dp"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="@color/sl_black_elev"
-            app:cardCornerRadius="8dp"
-            app:cardUseCompatPadding="true">
-
-            <com.github.mikephil.charting.charts.RadarChart
-                android:id="@+id/radarChart"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:padding="8dp" />
-        </androidx.cardview.widget.CardView>
-
         <TextView
             android:id="@+id/txtGenresTitle"
             android:layout_width="match_parent"
@@ -429,7 +413,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            app:cardBackgroundColor="@color/sl_card"
+            app:cardBackgroundColor="@color/sl_black_elev"
             app:cardCornerRadius="12dp"
             app:cardUseCompatPadding="true">
 
@@ -441,6 +425,22 @@
                 app:singleLine="false"
                 app:singleSelection="false" />
         </com.google.android.material.card.MaterialCardView>
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/radarCard"
+            android:layout_width="match_parent"
+            android:layout_height="360dp"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/sl_black_elev"
+            app:cardCornerRadius="8dp"
+            app:cardUseCompatPadding="true">
+
+            <com.github.mikephil.charting.charts.RadarChart
+                android:id="@+id/radarChart"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="8dp" />
+        </androidx.cardview.widget.CardView>
 
         <Button
             android:id="@+id/btnToggleDebug"
