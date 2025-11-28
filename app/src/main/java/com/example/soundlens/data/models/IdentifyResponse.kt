@@ -62,29 +62,58 @@ data class IdentifyResponse(
         get() = matches_for_song ?: top_matches?.firstOrNull()?.matches_for_song
 
     val clipFeatures: Features?
-        get() = calculated_features ?: audio_analysis?.calculated_features
+        get() = calculated_features
+            ?: audio_analysis?.calculated_features
+            ?: audio_analysis?.features_norm
+            ?: audio_analysis?.features_raw
 
     val idealFeatures: Features?
         get() = ideal_features ?: audio_analysis?.ideal_features
 
     val genreDistances: Map<String, Double>?
-        get() = genre_distances ?: audio_analysis?.distances
+        get() = genre_distances
+            ?: audio_analysis?.distances
+            ?: audio_analysis?.classification?.scores
 
     val predictedGenre: String?
         get() = audio_analysis?.predicted_genre
+            ?: audio_analysis?.classification?.best_genre_label
+            ?: audio_analysis?.classification?.best_genre_key
+            ?: genre
 }
 
 data class Features(
     val rms: Double? = null,
     val zcr: Double? = null,
-    val sc_hz: Double? = null
+    val sc_hz: Double? = null,
+    val spec_entropy: Double? = null,
+    val spec_kurtosis: Double? = null,
+    val plef: Double? = null
 )
 
 data class AudioAnalysis(
     val predicted_genre: String? = null,
     val calculated_features: Features? = null,
     val ideal_features: Features? = null,
-    val distances: Map<String, Double>? = null
+    val distances: Map<String, Double>? = null,
+    val tempo: Tempo? = null,
+    val features_raw: Features? = null,
+    val features_norm: Features? = null,
+    val classification: Classification? = null
+)
+
+data class Tempo(
+    val bpm: Double? = null,
+    val bpm_raw: Double? = null,
+    val confidence: Double? = null,
+    val frame_rate_hz: Double? = null
+)
+
+data class Classification(
+    val best_genre_key: String? = null,
+    val best_genre_label: String? = null,
+    val scores: Map<String, Double>? = null,
+    val candidates_after_tempo: List<String>? = null
 )
 
 data class IdentifyInput(

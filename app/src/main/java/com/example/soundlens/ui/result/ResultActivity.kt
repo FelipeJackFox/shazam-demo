@@ -14,6 +14,7 @@ import com.example.soundlens.R
 import com.example.soundlens.databinding.ActivityResultBinding
 import com.example.soundlens.ui.graph.GraphActivity
 import com.example.soundlens.uiutils.Formatter
+import com.example.soundlens.data.models.Features
 import com.github.mikephil.charting.charts.RadarChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.RadarData
@@ -21,7 +22,18 @@ import com.github.mikephil.charting.data.RadarDataSet
 import com.github.mikephil.charting.data.RadarEntry
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 
-private val RADAR_LABELS = arrayOf("RMS", "ZCR", "SC (Hz)")
+private data class RadarMetric(val label: String, val extractor: (Features?) -> Double?)
+
+private val RADAR_METRICS = listOf(
+    RadarMetric("Energía (RMS)") { it?.rms },
+    RadarMetric("Ruido (ZCR)") { it?.zcr },
+    RadarMetric("Brillo (SC)") { it?.sc_hz },
+    RadarMetric("Entropía espectral") { it?.spec_entropy },
+    RadarMetric("Picos (kurtosis)") { it?.spec_kurtosis },
+    RadarMetric("Silencios/variación (PLEF)") { it?.plef }
+)
+
+private val RADAR_LABELS = RADAR_METRICS.map { it.label }.toTypedArray()
 private const val RADAR_FILL_ALPHA_CLIP = 120
 private const val RADAR_FILL_ALPHA_IDEAL = 70
 private const val RADAR_LINE_WIDTH = 2f
@@ -31,9 +43,6 @@ private const val RADAR_Y_MAX = 1f
 private const val RADAR_Y_MIN = 0f
 private const val RADAR_Y_GRANULARITY = 0.25f
 private const val RADAR_SHOW_VALUES = false
-private const val RMS_MAX = 0.60
-private const val ZCR_MAX = 0.20
-private const val SC_MAX_HZ = 6000.0
 
 class ResultActivity : AppCompatActivity() {
 
@@ -155,31 +164,25 @@ class ResultActivity : AppCompatActivity() {
             return
         }
 
-        val signature = listOf(
-            clip.rms, clip.zcr, clip.sc_hz,
-            ideal.rms, ideal.zcr, ideal.sc_hz
-        ).joinToString("|")
+        val signature = RADAR_METRICS.flatMap { metric ->
+            listOf(metric.extractor(clip), metric.extractor(ideal))
+        }.joinToString("|")
         if (signature == lastRadarSignature && binding.radarChart.data != null) {
             binding.radarChart.visibility = View.VISIBLE
             return
         }
         lastRadarSignature = signature
 
-        fun cap(value: Double?, max: Double): Float {
-            val v = (value ?: 0.0).coerceAtLeast(0.0).coerceAtMost(max)
-            return (v / max).toFloat()
+        fun norm(value: Double?): Float {
+            return (value ?: 0.0).coerceIn(0.0, 1.0).toFloat()
         }
 
-        val clipEntries = listOf(
-            RadarEntry(cap(clip.rms, RMS_MAX)),
-            RadarEntry(cap(clip.zcr, ZCR_MAX)),
-            RadarEntry(cap(clip.sc_hz, SC_MAX_HZ))
-        )
-        val idealEntries = listOf(
-            RadarEntry(cap(ideal.rms, RMS_MAX)),
-            RadarEntry(cap(ideal.zcr, ZCR_MAX)),
-            RadarEntry(cap(ideal.sc_hz, SC_MAX_HZ))
-        )
+        val clipEntries = RADAR_METRICS.map { metric ->
+            RadarEntry(norm(metric.extractor(clip)))
+        }
+        val idealEntries = RADAR_METRICS.map { metric ->
+            RadarEntry(norm(metric.extractor(ideal)))
+        }
 
         val chart: RadarChart = binding.radarChart
         chart.visibility = View.VISIBLE

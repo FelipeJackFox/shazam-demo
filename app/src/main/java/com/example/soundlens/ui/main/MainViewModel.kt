@@ -197,13 +197,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
                 val resp = IdentifyParser.parseOrNull(payloadJson)
                 val top0 = resp?.top_matches?.firstOrNull()
+                val resolvedGenre = (resp?.genre?.takeIf { it.isNotBlank() })
+                    ?: resp?.predictedGenre
+                    ?: top0?.genre
+                    ?: ""
 
                 _goToResult.value = ResultNav(
                     payloadJson,
                     resp?.title ?: top0?.title ?: "—",
                     resp?.artist ?: top0?.artist ?: "—",
                     (resp?.year ?: top0?.year) ?: -1,
-                    resp?.genre ?: top0?.genre ?: "",
+                    resolvedGenre,
                     resp?.offset_frames ?: (top0?.offset_frames ?: -1),
                     resp?.totalMatches ?: -1,
                     resp?.bestMatches ?: -1,
