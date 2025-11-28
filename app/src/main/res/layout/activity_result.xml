@@ -277,14 +277,6 @@
             android:background="@color/sl_divider" />
 
         <TextView
-            android:id="@+id/txtOffset"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:textColor="@color/sl_text_primary"
-            android:textSize="16sp" />
-
-        <TextView
             android:id="@+id/txtBestMatches"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -360,21 +352,10 @@
         </androidx.cardview.widget.CardView>
 
         <Button
-            android:id="@+id/btnGraph"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="16dp"
-            android:backgroundTint="@color/sl_green"
-            android:text="Create match graph"
-            android:textAllCaps="false"
-            android:textColor="@android:color/black"
-            android:textStyle="bold" />
-
-        <Button
             android:id="@+id/btnToggleDebug"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="16dp"
             android:backgroundTint="@color/sl_card"
             android:text="Debug log ▾"
             android:textAllCaps="false"
