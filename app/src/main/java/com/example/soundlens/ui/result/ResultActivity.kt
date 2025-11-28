@@ -1,6 +1,5 @@
 package com.example.soundlens.ui.result
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.SeekBar
@@ -12,7 +11,6 @@ import androidx.core.view.isVisible
 import coil.load
 import com.example.soundlens.R
 import com.example.soundlens.databinding.ActivityResultBinding
-import com.example.soundlens.ui.graph.GraphActivity
 import com.example.soundlens.uiutils.Formatter
 import com.example.soundlens.data.models.Features
 import com.github.mikephil.charting.charts.RadarChart
@@ -88,10 +86,6 @@ class ResultActivity : AppCompatActivity() {
             binding.debugScroll.visibility = if (showing) View.GONE else View.VISIBLE
             binding.btnToggleDebug.text = if (showing) "Debug log ▾" else "Debug log ▴"
         }
-        binding.btnGraph.setOnClickListener {
-            val intent = Intent(this, GraphActivity::class.java)
-            startActivity(intent)
-        }
     }
 
     private fun observeState() {
@@ -136,7 +130,6 @@ class ResultActivity : AppCompatActivity() {
 
             binding.txtDebug.text = s.prettyJson
 
-            binding.txtOffset.text = vm.formatOffset()
             binding.txtBestMatches.text = vm.formatBestMatches()
             binding.txtTotalMatches.text = vm.formatTotalMatches()
             binding.txtPredictedGenre.text = vm.formatPredictedGenre()
@@ -158,7 +151,7 @@ class ResultActivity : AppCompatActivity() {
         val r = vm.state.value?.response ?: return
         val clip = r.clipFeatures
         val ideal = r.idealFeatures
-        if (clip == null || ideal == null) {
+        if (clip == null) {
             binding.radarChart.visibility = View.GONE
             lastRadarSignature = null
             return
@@ -180,8 +173,10 @@ class ResultActivity : AppCompatActivity() {
         val clipEntries = RADAR_METRICS.map { metric ->
             RadarEntry(norm(metric.extractor(clip)))
         }
-        val idealEntries = RADAR_METRICS.map { metric ->
-            RadarEntry(norm(metric.extractor(ideal)))
+        val idealEntries = ideal?.let {
+            RADAR_METRICS.map { metric ->
+                RadarEntry(norm(metric.extractor(it)))
+            }
         }
 
         val chart: RadarChart = binding.radarChart
@@ -199,16 +194,18 @@ class ResultActivity : AppCompatActivity() {
             lineWidth = RADAR_LINE_WIDTH
             setDrawValues(RADAR_SHOW_VALUES)
         }
-        val setIdeal = RadarDataSet(idealEntries, "Ideal").apply {
-            color = idealColor
-            fillColor = idealColor
-            setDrawFilled(true)
-            fillAlpha = RADAR_FILL_ALPHA_IDEAL
-            lineWidth = RADAR_LINE_WIDTH
-            setDrawValues(RADAR_SHOW_VALUES)
+        val setIdeal = idealEntries?.let { entries ->
+            RadarDataSet(entries, "Ideal").apply {
+                color = idealColor
+                fillColor = idealColor
+                setDrawFilled(true)
+                fillAlpha = RADAR_FILL_ALPHA_IDEAL
+                lineWidth = RADAR_LINE_WIDTH
+                setDrawValues(RADAR_SHOW_VALUES)
+            }
         }
 
-        chart.data = RadarData(setClip, setIdeal)
+        chart.data = RadarData(listOfNotNull(setClip, setIdeal))
         chart.description.isEnabled = false
         chart.isRotationEnabled = false
         chart.webLineWidth = RADAR_WEB_WIDTH
