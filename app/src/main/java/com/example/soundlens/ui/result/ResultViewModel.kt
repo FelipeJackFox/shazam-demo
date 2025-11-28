@@ -310,75 +310,45 @@ class ResultViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun formatBestMatches(): String {
-        val v = state.value?.response?.bestMatches
-        return "Matches at best offset: ${v ?: "—"}"
-    }
-
-    fun formatTotalMatches(): String {
-        val v = state.value?.response?.totalMatches
-        return "Total matches: ${v ?: "—"}"
-    }
-
-    fun formatPredictedGenre(): String {
-        val r = state.value?.response
-        val confidence = r?.confidence?.let { " • conf ${"%.3f".format(it)}" } ?: ""
-        val key = r?.audio_analysis?.classification?.best_genre_key
-        val predicted = r?.predictedGenre ?: "—"
-        val keySuffix = if (!key.isNullOrBlank() && key != predicted) " ($key)" else ""
-        val tempo = r?.audio_analysis?.tempo?.bpm?.let { " • ${"%.1f".format(it)} bpm" } ?: ""
-        return "Predicted: $predicted$keySuffix$confidence$tempo"
-    }
-
-    private fun fmtFeatureRow(label: String, value: Double?): String {
-        return "%s: %s".format(label, value?.let { "%.4f".format(it) } ?: "—")
-    }
-
-    fun formatFeatures(): String {
-        val clip = state.value?.response?.clipFeatures
-        val ideal = state.value?.response?.idealFeatures
-        if (clip == null && ideal == null) return "Features: —"
-        val clipText = listOf(
-            fmtFeatureRow("rms", clip?.rms),
-            fmtFeatureRow("zcr", clip?.zcr),
-            fmtFeatureRow("sc_hz", clip?.sc_hz),
-            fmtFeatureRow("spec_entropy", clip?.spec_entropy),
-            fmtFeatureRow("spec_kurtosis", clip?.spec_kurtosis),
-            fmtFeatureRow("plef", clip?.plef)
-        ).joinToString("  ")
-        val idealText = listOf(
-            fmtFeatureRow("rms", ideal?.rms),
-            fmtFeatureRow("zcr", ideal?.zcr),
-            fmtFeatureRow("sc_hz", ideal?.sc_hz),
-            fmtFeatureRow("spec_entropy", ideal?.spec_entropy),
-            fmtFeatureRow("spec_kurtosis", ideal?.spec_kurtosis),
-            fmtFeatureRow("plef", ideal?.plef)
-        ).joinToString("  ")
-        return "Clip →  $clipText\nIdeal → $idealText"
-    }
-
-    fun formatDistances(): String {
-        val resp = state.value?.response ?: return "Distances: —"
-        val classificationScores = resp.audio_analysis?.classification?.scores
-        val distances = resp.genreDistances
-
-        classificationScores?.let { scores ->
-            val sorted = scores.toList().sortedByDescending { it.second }
-            val rows = sorted.joinToString("\n") { (g, v) ->
-                "%s: %.4f".format(g, v)
-            }
-            return "Genre scores:\n$rows"
+    fun topGenres(limit: Int = 3): List<String> {
+        val resp = state.value?.response ?: return emptyList()
+        val scores = resp.audio_analysis?.classification?.scores
+        if (!scores.isNullOrEmpty()) {
+            return scores.entries
+                .sortedByDescending { it.value }
+                .map { formatGenreLabel(it.key) }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .take(limit)
         }
 
-        distances?.let { dists ->
-            val sorted = dists.toList().sortedBy { it.second }
-            val rows = sorted.joinToString("\n") { (g, v) ->
-                "%s: %.4f".format(g, v)
-            }
-            return "Distances:\n$rows"
+        resp.genreDistances?.let { distances ->
+            return distances.entries
+                .sortedBy { it.value }
+                .map { formatGenreLabel(it.key) }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .take(limit)
         }
 
-        return "Distances: —"
+        val fallbacks = listOfNotNull(
+            resp.audio_analysis?.classification?.best_genre_label,
+            resp.audio_analysis?.classification?.best_genre_key,
+            resp.predictedGenre,
+            resp.genre
+        )
+        return fallbacks
+            .map { formatGenreLabel(it) }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .take(limit)
+    }
+
+    private fun formatGenreLabel(raw: String?): String {
+        raw ?: return ""
+        val cleaned = raw.replace('_', ' ').replace('-', ' ').trim()
+        if (cleaned.isBlank()) return ""
+        return cleaned.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }
 
     override fun onCleared() {
