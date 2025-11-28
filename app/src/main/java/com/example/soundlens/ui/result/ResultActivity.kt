@@ -14,6 +14,7 @@ import com.example.soundlens.databinding.ActivityResultBinding
 import com.example.soundlens.uiutils.Formatter
 import com.example.soundlens.data.models.Features
 import com.github.mikephil.charting.charts.RadarChart
+import com.github.mikephil.charting.components.Legend
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.RadarData
 import com.github.mikephil.charting.data.RadarDataSet
@@ -227,7 +228,18 @@ class ResultActivity : AppCompatActivity() {
             textColor = labelColor
         }
         chart.legend.apply {
-            isEnabled = false
+            isEnabled = true
+            textColor = labelColor
+            textSize = 11f
+            verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+            horizontalAlignment = Legend.LegendHorizontalAlignment.CENTER
+            orientation = Legend.LegendOrientation.HORIZONTAL
+            setDrawInside(true)
+            formSize = 8f
+            xEntrySpace = 6f
+            yEntrySpace = 2f
+            formToTextSpace = 3f
+            yOffset = 4f
         }
 
         chart.setExtraOffsets(8f, 12f, 8f, 12f)
