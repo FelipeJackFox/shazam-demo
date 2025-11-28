@@ -216,7 +216,7 @@ class ResultActivity : AppCompatActivity() {
         chart.xAxis.apply {
             valueFormatter = IndexAxisValueFormatter(RADAR_LABELS)
             textColor = labelColor
-            textSize = 12f
+            textSize = 11f
             position = XAxis.XAxisPosition.TOP
         }
         chart.yAxis.apply {
@@ -230,7 +230,8 @@ class ResultActivity : AppCompatActivity() {
             isEnabled = false
         }
 
-        chart.setExtraOffsets(16f, 16f, 16f, 16f)
+        chart.setExtraOffsets(8f, 12f, 8f, 12f)
+        chart.setMinOffset(4f)
 
         chart.animateXY(500, 500)
         chart.invalidate()
